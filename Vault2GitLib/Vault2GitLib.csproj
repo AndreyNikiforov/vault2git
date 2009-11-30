@@ -1,0 +1,75 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="3.5" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProductVersion>9.0.30729</ProductVersion>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectGuid>{EE493CD2-D308-4B2F-95C6-68A1F89D76CD}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>Vault2Git.Lib</RootNamespace>
+    <AssemblyName>Vault2GitLib</AssemblyName>
+    <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="DragnetLib, Version=4.0.6.15954, Culture=neutral, PublicKeyToken=14a8075ce88af4e0, processorArchitecture=MSIL" />
+    <Reference Include="SGDiff, Version=4.0.6.15954, Culture=neutral, PublicKeyToken=f3bc199665d82028, processorArchitecture=MSIL" />
+    <Reference Include="System" />
+    <Reference Include="System.Core">
+      <RequiredTargetFramework>3.5</RequiredTargetFramework>
+    </Reference>
+    <Reference Include="System.Xml.Linq">
+      <RequiredTargetFramework>3.5</RequiredTargetFramework>
+    </Reference>
+    <Reference Include="System.Data.DataSetExtensions">
+      <RequiredTargetFramework>3.5</RequiredTargetFramework>
+    </Reference>
+    <Reference Include="System.Data" />
+    <Reference Include="System.Xml" />
+    <Reference Include="VaultClientIntegrationLib, Version=4.0.6.15954, Culture=neutral, PublicKeyToken=500623c275bd78a9, processorArchitecture=MSIL" />
+    <Reference Include="VaultClientNetLib, Version=4.0.6.15954, Culture=neutral, PublicKeyToken=e372e94840f8a4d3, processorArchitecture=MSIL" />
+    <Reference Include="VaultClientOperationsLib, Version=4.0.6.15954, Culture=neutral, PublicKeyToken=e372e94840f8a4d3, processorArchitecture=MSIL" />
+    <Reference Include="VaultLib, Version=4.0.6.15954, Culture=neutral, PublicKeyToken=a74d7badb9387c36, processorArchitecture=MSIL" />
+    <Reference Include="VCDiff, Version=4.0.6.15954, Culture=neutral, PublicKeyToken=4f75799f06837886, processorArchitecture=MSIL" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Processor.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="libs\VaultClientAPI_4_0_6_15954\DragnetLib.dll" />
+    <Content Include="libs\VaultClientAPI_4_0_6_15954\SGDiff.dll" />
+    <Content Include="libs\VaultClientAPI_4_0_6_15954\VaultClientIntegrationLib.dll" />
+    <Content Include="libs\VaultClientAPI_4_0_6_15954\VaultClientNetLib.dll" />
+    <Content Include="libs\VaultClientAPI_4_0_6_15954\VaultClientOperationsLib.dll" />
+    <Content Include="libs\VaultClientAPI_4_0_6_15954\VaultLib.dll" />
+    <Content Include="libs\VaultClientAPI_4_0_6_15954\VCDiff.dll" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
+       Other similar extension points exist, see Microsoft.Common.targets.
+  <Target Name="BeforeBuild">
+  </Target>
+  <Target Name="AfterBuild">
+  </Target>
+  -->
+</Project>
