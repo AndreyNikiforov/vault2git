@@ -118,7 +118,7 @@ namespace Vault2Git.Lib
                     //get vault version info
                     var info = vaultVersions[version.Key];
                     //commit
-                    ticks += gitCommit(info.Login, this.GitDomainName, buildCommitMessage(vaultRepoPath, version.Key, info));
+                    ticks += gitCommit(info.Login, this.GitDomainName, buildCommitMessage(vaultRepoPath, version.Key, info), info.TimeStamp);
                     if (null != Progress)
                         if (Progress(version.Key, ticks))
                             return true;
@@ -251,7 +251,8 @@ namespace Vault2Git.Lib
                                         {
                                             TrxId = i.TxID,
                                             Comment = i.Comment,
-                                            Login = i.UserLogin
+                                            Login = i.UserLogin,
+                                            TimeStamp = i.TxDate.GetDateTime()
                                         });
             return Environment.TickCount - ticks;
         }
@@ -299,6 +300,7 @@ namespace Vault2Git.Lib
             public long TrxId;
             public string Comment;
             public string Login;
+            public DateTime TimeStamp;
         }
 
         private int Init(string vaultRepoPath, string gitBranch, ref long currentVersion)
@@ -331,11 +333,19 @@ namespace Vault2Git.Lib
             return unSetVaultWorkingFolder(vaultRepoPath);
         }
 
-        private int gitCommit(string vaultLogin, string gitDomainName, string vaultCommitMessage)
+        private int gitCommit(string vaultLogin, string gitDomainName, string vaultCommitMessage, DateTime commitTimeStamp)
         {
             string[] msgs;
             var ticks = runGitCommand(_gitAddCmd, string.Empty, out msgs);
-            ticks += runGitCommand(string.Format(_gitCommitCmd, vaultLogin, gitDomainName), vaultCommitMessage, out msgs);
+            ticks += runGitCommand(
+                string.Format(_gitCommitCmd, vaultLogin, gitDomainName),
+                vaultCommitMessage,
+                out msgs,
+                new Dictionary<string, string>()
+                    {
+                        {"GIT_AUTHOR_DATE", string.Format("{0:s}", commitTimeStamp)}
+                    }
+                );
             return ticks;
         }
 
@@ -414,8 +424,11 @@ namespace Vault2Git.Lib
                 ServerOperations.RemoveWorkingFolder(exPath);
             return Environment.TickCount - ticks;
         }
-
         private int runGitCommand(string cmd, string stdInput, out string[] stdOutput)
+        {
+            return runGitCommand(cmd, stdInput, out stdOutput, null);
+        }
+        private int runGitCommand(string cmd, string stdInput, out string[] stdOutput, IDictionary<string, string> env)
         {
             var ticks = Environment.TickCount;
 
@@ -426,6 +439,10 @@ namespace Vault2Git.Lib
                              RedirectStandardOutput = true,
                              RedirectStandardInput = true
                          };
+            //set env vars
+            if (null != env)
+                foreach (var e in env)
+                    pi.EnvironmentVariables.Add(e.Key, e.Value);
             using (var p = new Process()
                                {
                                    StartInfo = pi
@@ -435,7 +452,7 @@ namespace Vault2Git.Lib
                 p.StandardInput.Write(stdInput);
                 p.StandardInput.Close();
                 var msgs = new List<string>();
-                while(!p.StandardOutput.EndOfStream)
+                while (!p.StandardOutput.EndOfStream)
                     msgs.Add(p.StandardOutput.ReadLine());
                 stdOutput = msgs.ToArray();
                 p.WaitForExit();
