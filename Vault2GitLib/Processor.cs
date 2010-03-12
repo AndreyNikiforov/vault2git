@@ -343,7 +343,8 @@ namespace Vault2Git.Lib
                 out msgs,
                 new Dictionary<string, string>()
                     {
-                        {"GIT_AUTHOR_DATE", string.Format("{0:s}", commitTimeStamp)}
+                        {"GIT_AUTHOR_DATE", string.Format("{0:s}", commitTimeStamp)},
+                        {"GIT_COMMITTER_DATE", string.Format("{0:s}", commitTimeStamp)}
                     }
                 );
             return ticks;
