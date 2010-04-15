@@ -43,7 +43,7 @@ namespace Vault2Git.Lib
         private const string _gitFinalizer = "update-server-info";
         private const string _gitAddCmd = "add --all .";
         private const string _gitLastCommitInfoCmd = "log -1";
-        private const string _gitCommitCmd = @"commit --quiet --allow-empty --all --author=""{0} <{0}@{1}>"" -F -";
+        private const string _gitCommitCmd = @"commit --quiet --allow-empty --all --date=""{2}"" --author=""{0} <{0}@{1}>"" -F -";
         private const string _gitCheckoutCmd = "checkout -f {0}";
         private const string _gitBranchCmd = "branch";
 
@@ -338,14 +338,9 @@ namespace Vault2Git.Lib
             string[] msgs;
             var ticks = runGitCommand(_gitAddCmd, string.Empty, out msgs);
             ticks += runGitCommand(
-                string.Format(_gitCommitCmd, vaultLogin, gitDomainName),
+                string.Format(_gitCommitCmd, vaultLogin, gitDomainName, string.Format("{0:s}", commitTimeStamp)),
                 vaultCommitMessage,
-                out msgs,
-                new Dictionary<string, string>()
-                    {
-                        {"GIT_AUTHOR_DATE", string.Format("{0:s}", commitTimeStamp)},
-                        {"GIT_COMMITTER_DATE", string.Format("{0:s}", commitTimeStamp)}
-                    }
+                out msgs
                 );
             return ticks;
         }
