@@ -43,15 +43,19 @@ namespace Vault2Git.CLI
                                     Progress = ShowProgress
                                 };
 
-            foreach (var pair in pathPairs)
-            {
-                var pairParts = pair.Split('~');
-                if (processor.Pull(pairParts[0], pairParts[1], maxVersion))
-                    break;
-            }
+
+            processor.Pull
+                (
+                    pathPairs
+                        .ToList()
+                        .ToDictionary(pair => pair.Split('~')[1],
+                                      pair => pair.Split('~')[0])
+                    , maxVersion
+                );
+
 #if DEBUG
-            Console.WriteLine("Press ENTER");
-            Console.ReadLine();
+                        Console.WriteLine("Press ENTER");
+                        Console.ReadLine();
 #endif
         }
 

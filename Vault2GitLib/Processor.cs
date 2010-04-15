@@ -64,92 +64,112 @@ namespace Vault2Git.Lib
         /// version number reported to <see cref="Progress"/> when finalization finished (e.g. logout, unset wf etc)
         /// </summary>
         public const int ProgressSpecialVersionFinalize = -2;
-        
-        public bool Pull(string vaultRepoPath, string gitBranch, long limitCount)
+
+        public bool Pull(IEnumerable<KeyValuePair<string,string>> git2vaultRepoPath, long limitCount)
         {
-            var ticks = vaultLogin();
+            int ticks = 0;
+            //get git current branch
+            string gitCurrentBranch;
+            ticks += this.gitCurrentBranch(out gitCurrentBranch);
+            
+            //reorder target branches to start from current (to avoid checkouts)
+            var targetList =
+                git2vaultRepoPath.OrderByDescending(p => p.Key.Equals(gitCurrentBranch, StringComparison.CurrentCultureIgnoreCase));
+
+            ticks += vaultLogin();
             try
             {
-                long currentVaultVersion = 0;
-
-                ticks += GetGitVersion(gitBranch, ref currentVaultVersion);
-                
-                //get vaultVersions
-                IDictionary<long, VaultVersionInfo> vaultVersions = new SortedList<long, VaultVersionInfo>();
-
-                ticks += this.vaultPopulateInfo(vaultRepoPath, vaultVersions);
-
-                var versionsToProcess = vaultVersions.Where(p => p.Key > currentVaultVersion);
-
-                //do init only if there is something to work on
-                if (versionsToProcess.Count() > 0)
-                    ticks += Init(vaultRepoPath, gitBranch);
-
-                //report init
-                if (null != Progress)
-                    if (Progress(ProgressSpecialVersionInit, ticks))
-                        return true;
-
-                var counter = 0;
-                foreach (var version in versionsToProcess)
+                foreach (var pair in targetList)
                 {
-                    //get vault version
-                    ticks = vaultGet(vaultRepoPath, version.Key, version.Value.TrxId);
-                    //change all sln files
-                    Directory.GetFiles(
-                        WorkingFolder,
-                        "*.sln",
-                        SearchOption.AllDirectories)
-                        //remove temp files created by vault
-                        .Where(f => !f.Contains("~"))
-                        .ToList()
-                        .ForEach(f => ticks += removeSCCFromSln(f));
-                    //change all csproj files
-                    Directory.GetFiles(
-                        WorkingFolder,
-                        "*.csproj",
-                        SearchOption.AllDirectories)
-                        //remove temp files created by vault
-                        .Where(f => !f.Contains("~"))
-                        .ToList()
-                        .ForEach(f => ticks += removeSCCFromCSProj(f));
-                    //change all vdproj files
-                    Directory.GetFiles(
-                        WorkingFolder,
-                        "*.vdproj",
-                        SearchOption.AllDirectories)
-                        //remove temp files created by vault
-                        .Where(f => !f.Contains("~"))
-                        .ToList()
-                        .ForEach(f => ticks += removeSCCFromVDProj(f));
-                    //get vault version info
-                    var info = vaultVersions[version.Key];
-                    //commit
-                    ticks += gitCommit(info.Login, this.GitDomainName, buildCommitMessage(vaultRepoPath, version.Key, info), info.TimeStamp);
-                    if (null != Progress)
-                        if (Progress(version.Key, ticks))
-                            return true;
-                    counter++;
-                    //call gc
-                    if (0 == counter % GitGCInterval)
-                    {
-                        ticks = gitGC();
-                        if (null != Progress)
-                            if (Progress(ProgressSpecialVersionGc, ticks))
-                                return true;
-                    }
-                    //check if limit is reached
-                    if (counter >= limitCount)
-                        break;
-                }
 
+                    var gitBranch = pair.Key;
+                    var vaultRepoPath = pair.Value;
+
+                    long currentGitVaultVersion = 0;
+
+                    //reset ticks
+                    ticks = 0;
+
+                    //get current version
+                    ticks += gitVaultVersion(gitBranch, ref currentGitVaultVersion);
+
+                    //get vaultVersions
+                    IDictionary<long, VaultVersionInfo> vaultVersions = new SortedList<long, VaultVersionInfo>();
+
+                    ticks += this.vaultPopulateInfo(vaultRepoPath, vaultVersions);
+
+                    var versionsToProcess = vaultVersions.Where(p => p.Key > currentGitVaultVersion);
+
+                    //do init only if there is something to work on
+                    if (versionsToProcess.Count() > 0)
+                        ticks += Init(vaultRepoPath, gitBranch);
+
+                    //report init
+                    if (null != Progress)
+                        if (Progress(ProgressSpecialVersionInit, ticks))
+                            return true;
+
+                    var counter = 0;
+                    foreach (var version in versionsToProcess)
+                    {
+                        //get vault version
+                        ticks = vaultGet(vaultRepoPath, version.Key, version.Value.TrxId);
+                        //change all sln files
+                        Directory.GetFiles(
+                            WorkingFolder,
+                            "*.sln",
+                            SearchOption.AllDirectories)
+                            //remove temp files created by vault
+                            .Where(f => !f.Contains("~"))
+                            .ToList()
+                            .ForEach(f => ticks += removeSCCFromSln(f));
+                        //change all csproj files
+                        Directory.GetFiles(
+                            WorkingFolder,
+                            "*.csproj",
+                            SearchOption.AllDirectories)
+                            //remove temp files created by vault
+                            .Where(f => !f.Contains("~"))
+                            .ToList()
+                            .ForEach(f => ticks += removeSCCFromCSProj(f));
+                        //change all vdproj files
+                        Directory.GetFiles(
+                            WorkingFolder,
+                            "*.vdproj",
+                            SearchOption.AllDirectories)
+                            //remove temp files created by vault
+                            .Where(f => !f.Contains("~"))
+                            .ToList()
+                            .ForEach(f => ticks += removeSCCFromVDProj(f));
+                        //get vault version info
+                        var info = vaultVersions[version.Key];
+                        //commit
+                        ticks += gitCommit(info.Login, this.GitDomainName,
+                                           buildCommitMessage(vaultRepoPath, version.Key, info), info.TimeStamp);
+                        if (null != Progress)
+                            if (Progress(version.Key, ticks))
+                                return true;
+                        counter++;
+                        //call gc
+                        if (0 == counter%GitGCInterval)
+                        {
+                            ticks = gitGC();
+                            if (null != Progress)
+                                if (Progress(ProgressSpecialVersionGc, ticks))
+                                    return true;
+                        }
+                        //check if limit is reached
+                        if (counter >= limitCount)
+                            break;
+                    }
+                    ticks = vaultFinalize(vaultRepoPath);
+                }
             }
             finally
             {
                 //complete
-                ticks = vaultFinalize(vaultRepoPath);
                 ticks += vaultLogout();
-                //finalize git (update server info for dumb clients
+                //finalize git (update server info for dumb clients)
                 ticks += gitFinalize();
                 if (null != Progress)
                     Progress(ProgressSpecialVersionFinalize, ticks);
@@ -310,7 +330,7 @@ namespace Vault2Git.Lib
             public DateTime TimeStamp;
         }
 
-        private int GetGitVersion(string gitBranch, ref long currentVersion)
+        private int gitVaultVersion(string gitBranch, ref long currentVersion)
         {
             string[] msgs;
             //get info
@@ -331,7 +351,7 @@ namespace Vault2Git.Lib
                 ticks += runGitCommand(string.Format(_gitCheckoutCmd, gitBranch), string.Empty, out msgs);
                 //confirm current branch (sometimes checkout failed)
                 string currentBranch;
-                ticks += this.gitBranch(out currentBranch);
+                ticks += this.gitCurrentBranch(out currentBranch);
                 if (gitBranch.Equals(currentBranch, StringComparison.OrdinalIgnoreCase))
                     break;
                 if (tries > 5)
@@ -358,7 +378,7 @@ namespace Vault2Git.Lib
             return ticks;
         }
 
-        private int gitBranch(out string currentBranch)
+        private int gitCurrentBranch(out string currentBranch)
         {
             string[] msgs;
             var ticks = runGitCommand(_gitBranchCmd, string.Empty, out msgs);
