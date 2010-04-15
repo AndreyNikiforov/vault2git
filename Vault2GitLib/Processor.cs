@@ -42,7 +42,7 @@ namespace Vault2Git.Lib
         private const string _gitGCCmd = "gc --auto";
         private const string _gitFinalizer = "update-server-info";
         private const string _gitAddCmd = "add --all .";
-        private const string _gitLastCommitInfoCmd = "log -1";
+        private const string _gitLastCommitInfoCmd = "log -1 {0}";
         private const string _gitCommitCmd = @"commit --quiet --allow-empty --all --date=""{2}"" --author=""{0} <{0}@{1}>"" -F -";
         private const string _gitCheckoutCmd = "checkout -f {0}";
         private const string _gitBranchCmd = "branch";
@@ -71,12 +71,19 @@ namespace Vault2Git.Lib
             try
             {
                 long currentVaultVersion = 0;
-                ticks += Init(vaultRepoPath, gitBranch, ref currentVaultVersion);
 
+                ticks += GetGitVersion(gitBranch, ref currentVaultVersion);
+                
                 //get vaultVersions
                 IDictionary<long, VaultVersionInfo> vaultVersions = new SortedList<long, VaultVersionInfo>();
 
                 ticks += this.vaultPopulateInfo(vaultRepoPath, vaultVersions);
+
+                var versionsToProcess = vaultVersions.Where(p => p.Key > currentVaultVersion);
+
+                //do init only if there is something to work on
+                if (versionsToProcess.Count() > 0)
+                    ticks += Init(vaultRepoPath, gitBranch);
 
                 //report init
                 if (null != Progress)
@@ -84,7 +91,7 @@ namespace Vault2Git.Lib
                         return true;
 
                 var counter = 0;
-                foreach (var version in vaultVersions.Where(p => p.Key > currentVaultVersion))
+                foreach (var version in versionsToProcess)
                 {
                     //get vault version
                     ticks = vaultGet(vaultRepoPath, version.Key, version.Value.TrxId);
@@ -303,13 +310,23 @@ namespace Vault2Git.Lib
             public DateTime TimeStamp;
         }
 
-        private int Init(string vaultRepoPath, string gitBranch, ref long currentVersion)
+        private int GetGitVersion(string gitBranch, ref long currentVersion)
+        {
+            string[] msgs;
+            //get info
+            var ticks = gitLog(gitBranch, out msgs);
+            //get vault version
+            currentVersion = getVaultVersionFromGitLogMessage(msgs);
+            return ticks;
+        }
+
+        private int Init(string vaultRepoPath, string gitBranch)
         {
             //set working folder
             var ticks = setVaultWorkingFolder(vaultRepoPath);
             //checkout branch
             string[] msgs;
-            for (int tries = 0;; tries++)
+            for (int tries = 0; ; tries++)
             {
                 ticks += runGitCommand(string.Format(_gitCheckoutCmd, gitBranch), string.Empty, out msgs);
                 //confirm current branch (sometimes checkout failed)
@@ -320,10 +337,6 @@ namespace Vault2Git.Lib
                 if (tries > 5)
                     throw new Exception("cannot switch");
             }
-            //get info
-            ticks += gitLog(out msgs);
-            //get vault version
-            currentVersion = getVaultVersionFromGitLogMessage(msgs);
             return ticks;
         }
 
@@ -383,9 +396,9 @@ namespace Vault2Git.Lib
             return version;
         }
 
-        private int gitLog(out string[] msg)
+        private int gitLog(string gitBranch, out string[] msg)
         {
-            return runGitCommand(_gitLastCommitInfoCmd, string.Empty, out msg);
+            return runGitCommand(string.Format(_gitLastCommitInfoCmd, gitBranch), string.Empty, out msg);
         }
 
         private int gitGC()
