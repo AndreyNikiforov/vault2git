@@ -292,36 +292,40 @@ namespace Vault2Git.Lib
                 repoPath,
                 Convert.ToInt32(version),
                 new GetOptions()
-                {
-                    MakeWritable = MakeWritableType.MakeAllFilesWritable,
-                    Merge = MergeType.OverwriteWorkingCopy,
-                    OverrideEOL = VaultEOL.None,
-                    //remove working copy does not work -- bug http://support.sourcegear.com/viewtopic.php?f=5&t=11145
-                    PerformDeletions = PerformDeletionsType.RemoveWorkingCopy,
-                    SetFileTime = SetFileTimeType.Current,
-                    Recursive = true
-                });
+                    {
+                        MakeWritable = MakeWritableType.MakeAllFilesWritable,
+                        Merge = MergeType.OverwriteWorkingCopy,
+                        OverrideEOL = VaultEOL.None,
+                        //remove working copy does not work -- bug http://support.sourcegear.com/viewtopic.php?f=5&t=11145
+                        PerformDeletions = PerformDeletionsType.RemoveWorkingCopy,
+                        SetFileTime = SetFileTimeType.Current,
+                        Recursive = true
+                    });
 
             //now process deletions, moves, and renames (due to vault bug)
-            var allowedRequests = new int[] {
-                9,  //delete
-                12, //move
-                15  //rename
-            };
+            var allowedRequests = new int[]
+                                      {
+                                          9, //delete
+                                          12, //move
+                                          15 //rename
+                                      };
             foreach (var item in ServerOperations.ProcessCommandTxDetail(txId).items
                 .Where(i => allowedRequests.Contains(i.RequestType)))
-            {
+
                 //delete file
-                var pathToDelete = Path.Combine(this.WorkingFolder, item.ItemPath1.Substring(repoPath.Length + 1));
-                //Console.WriteLine("delete {0} => {1}", item.ItemPath1, pathToDelete);
-                if (File.Exists(pathToDelete))
-                    File.Delete(pathToDelete);
-                if (Directory.Exists(pathToDelete))
-                    Directory.Delete(pathToDelete, true);
-            }
+                //check if it is within current branch
+                if (item.ItemPath1.StartsWith(repoPath, StringComparison.CurrentCultureIgnoreCase))
+                {
+                    var pathToDelete = Path.Combine(this.WorkingFolder, item.ItemPath1.Substring(repoPath.Length + 1));
+                    //Console.WriteLine("delete {0} => {1}", item.ItemPath1, pathToDelete);
+                    if (File.Exists(pathToDelete))
+                        File.Delete(pathToDelete);
+                    if (Directory.Exists(pathToDelete))
+                        Directory.Delete(pathToDelete, true);
+                }
             return Environment.TickCount - ticks;
         }
-        
+
         struct VaultVersionInfo
         {
             public long TrxId;
