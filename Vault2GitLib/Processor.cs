@@ -44,7 +44,7 @@ namespace Vault2Git.Lib
         private const string _gitAddCmd = "add --all .";
         private const string _gitLastCommitInfoCmd = "log -1 {0}";
         private const string _gitCommitCmd = @"commit --quiet --allow-empty --all --date=""{2}"" --author=""{0} <{0}@{1}>"" -F -";
-        private const string _gitCheckoutCmd = "checkout -f {0}";
+        private const string _gitCheckoutCmd = "checkout --quiet --force {0}";
         private const string _gitBranchCmd = "branch";
 
         //constants
@@ -65,6 +65,12 @@ namespace Vault2Git.Lib
         /// </summary>
         public const int ProgressSpecialVersionFinalize = -2;
 
+        /// <summary>
+        /// Pulls versions
+        /// </summary>
+        /// <param name="git2vaultRepoPath">Key=git, Value=vault</param>
+        /// <param name="limitCount"></param>
+        /// <returns></returns>
         public bool Pull(IEnumerable<KeyValuePair<string,string>> git2vaultRepoPath, long limitCount)
         {
             int ticks = 0;
