@@ -15,6 +15,7 @@ namespace Vault2Git.CLI
             public int Limit { get; protected set; }
             public bool UseConsole { get; protected set; }
             public bool UseCapsLock { get; protected set; }
+            public bool SkipEmptyCommits { get; protected set; }
             public IEnumerable<string> Branches;
             public IEnumerable<string> Errors;
 
@@ -36,15 +37,18 @@ namespace Vault2Git.CLI
                         p.UseConsole = true;
                     else if (o.Equals("--caps-lock"))
                         p.UseCapsLock = true;
+                    else if (o.Equals("--skip-empty-commits"))
+                        p.SkipEmptyCommits = true;
                     else if (o.Equals("--help"))
                     {
                         errors.Add("Usage: vault2git [options]");
                         errors.Add("options:");
-                        errors.Add("   --help              This screen");
-                        errors.Add("   --console-output    Use console output (default=no output)");
-                        errors.Add("   --caps-lock         Use caps lock to stop at the end of the cycle with proper finalizers (default=no caps-lock)");
-                        errors.Add("   --branch=<branch>   Process only one branch from config. Branch name should be in git terms. Default=all branches from config");
-                        errors.Add("   --limit=<n>         Max number of versions to take from Vault for each branch");
+                        errors.Add("   --help                  This screen");
+                        errors.Add("   --console-output        Use console output (default=no output)");
+                        errors.Add("   --caps-lock             Use caps lock to stop at the end of the cycle with proper finalizers (default=no caps-lock)");
+                        errors.Add("   --branch=<branch>       Process only one branch from config. Branch name should be in git terms. Default=all branches from config");
+                        errors.Add("   --limit=<n>             Max number of versions to take from Vault for each branch");
+                        errors.Add("   --skip-empty-commits    Do not create empty commits in Git");
                     }
                     else
                         if (o.StartsWith(_limitParam))
@@ -121,7 +125,8 @@ namespace Vault2Git.CLI
                                     VaultRepository = ConfigurationManager.AppSettings["Vault.Repo"],
                                     VaultUser = ConfigurationManager.AppSettings["Vault.User"],
                                     VaultPassword = ConfigurationManager.AppSettings["Vault.Password"],
-                                    Progress = ShowProgress
+                                    Progress = ShowProgress,
+                                    SkipEmptyCommits = param.SkipEmptyCommits
                                 };
 
 

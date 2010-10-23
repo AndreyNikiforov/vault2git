@@ -37,11 +37,15 @@ namespace Vault2Git.Lib
         //callback
         public Func<long, int, bool> Progress;
 
+        //flags
+        public bool SkipEmptyCommits = false;
+
         //git commands
         private const string _gitVersionCmd = "version";
         private const string _gitGCCmd = "gc --auto";
         private const string _gitFinalizer = "update-server-info";
         private const string _gitAddCmd = "add --all .";
+        private const string _gitStatusCmd = "status --porcelain";
         private const string _gitLastCommitInfoCmd = "log -1 {0}";
         private const string _gitCommitCmd = @"commit --quiet --allow-empty --all --date=""{2}"" --author=""{0} <{0}@{1}>"" -F -";
         private const string _gitCheckoutCmd = "checkout --quiet --force {0}";
@@ -380,6 +384,17 @@ namespace Vault2Git.Lib
         {
             string[] msgs;
             var ticks = runGitCommand(_gitAddCmd, string.Empty, out msgs);
+            if (SkipEmptyCommits)
+            {
+                //checking status
+                ticks += runGitCommand(
+                    _gitStatusCmd,
+                    string.Empty,
+                    out msgs
+                    );
+                if (0 == msgs.Count())
+                    return ticks;
+            }
             ticks += runGitCommand(
                 string.Format(_gitCommitCmd, vaultLogin, gitDomainName, string.Format("{0:s}", commitTimeStamp)),
                 vaultCommitMessage,
