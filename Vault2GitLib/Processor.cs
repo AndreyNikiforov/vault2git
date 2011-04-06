@@ -48,7 +48,7 @@ namespace Vault2Git.Lib
         private const string _gitAddCmd = "add --all .";
         private const string _gitStatusCmd = "status --porcelain";
         private const string _gitLastCommitInfoCmd = "log -1 {0}";
-        private const string _gitCommitCmd = @"commit --quiet --allow-empty --all --date=""{2}"" --author=""{0} <{0}@{1}>"" -F -";
+        private const string _gitCommitCmd = @"commit --allow-empty --all --date=""{2}"" --author=""{0} <{0}@{1}>"" -F -";
         private const string _gitCheckoutCmd = "checkout --quiet --force {0}";
         private const string _gitBranchCmd = "branch";
         private const string _gitAddTagCmd = @"tag {0} {1} -a -m ""{2}""";
@@ -161,7 +161,7 @@ namespace Vault2Git.Lib
                         //get vault version info
                         var info = vaultVersions[version.Key];
                         //commit
-                        ticks += gitCommit(info.Login, this.GitDomainName,
+                        ticks += gitCommit(info.Login, info.TrxId, this.GitDomainName,
                                            buildCommitMessage(vaultRepoPath, version.Key, info), info.TimeStamp);
                         if (null != Progress)
                             if (Progress(version.Key, ticks))
@@ -325,7 +325,7 @@ namespace Vault2Git.Lib
                                                                        true, // get inherited
                                                                        true, // get file items
                                                                        true, // get folder items
-                                                                       0,
+                                                                       0,    // no limit on results
                                                                        out rowsRetMain,
                                                                        out rowsRetRecur,
                                                                        out qryToken);
@@ -442,8 +442,11 @@ namespace Vault2Git.Lib
             return unSetVaultWorkingFolder(vaultRepoPath);
         }
 
-        private int gitCommit(string vaultLogin, string gitDomainName, string vaultCommitMessage, DateTime commitTimeStamp)
+        private int gitCommit(string vaultLogin, long vaultTrxid, string gitDomainName, string vaultCommitMessage, DateTime commitTimeStamp)
         {
+            string gitCurrentBranch;
+            this.gitCurrentBranch(out gitCurrentBranch);
+
             string[] msgs;
             var ticks = runGitCommand(_gitAddCmd, string.Empty, out msgs);
             if (SkipEmptyCommits)
@@ -462,6 +465,14 @@ namespace Vault2Git.Lib
                 vaultCommitMessage,
                 out msgs
                 );
+
+            // Mapping Vault Transaction ID to Git Commit SHA-1 Hash
+            if (msgs[0].StartsWith("[" + gitCurrentBranch))
+            {
+                string gitCommitId = msgs[0].Split(' ')[1];
+                gitCommitId = gitCommitId.Substring(0, gitCommitId.Length - 1);
+                _txidMappings.Add(vaultTrxid, gitCommitId);
+            }
             return ticks;
         }
 
@@ -580,9 +591,6 @@ namespace Vault2Git.Lib
                     msgs.Add(p.StandardOutput.ReadLine());
                 stdOutput = msgs.ToArray();
                 p.WaitForExit();
-                if (p.ExitCode > 0)
-                    throw new Exception(string.Format("ERROR git {0} exited with code {1}", cmd, p.ExitCode));
-
             }
             return Environment.TickCount - ticks;
         }
