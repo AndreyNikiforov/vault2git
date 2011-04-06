@@ -53,13 +53,14 @@ namespace Vault2Git.Lib
         private const string _gitBranchCmd = "branch";
         private const string _gitAddTagCmd = @"tag {0} {1} -a -m ""{2}""";
 
-        //constants
-        private const string VaultTag = "[git-vault-id]";
-
+        //private vars
         /// <summary>
         /// Maps Vault TransactionID to Git Commit SHA-1 Hash
         /// </summary>
-        private const IDictionary<long, String> _txidMappings = new Dictionary<long, String>();
+        private IDictionary<long, String> _txidMappings = new Dictionary<long, String>();
+
+        //constants
+        private const string VaultTag = "[git-vault-id]";
 
         /// <summary>
         /// version number reported to <see cref="Progress"/> when init is complete
@@ -75,6 +76,11 @@ namespace Vault2Git.Lib
         /// version number reported to <see cref="Progress"/> when finalization finished (e.g. logout, unset wf etc)
         /// </summary>
         public const int ProgressSpecialVersionFinalize = -2;
+
+        /// <summary>
+        /// version number reported to <see cref="Progress"/> when git tags creation is completed
+        /// </summary>
+        public const int ProgressSpecialVersionTags = -3;
 
         /// <summary>
         /// Pulls versions
@@ -335,24 +341,35 @@ namespace Vault2Git.Lib
                                                                                 0,
                                                                                 (int)rowsRetRecur,
                                                                                 out labelItems);
-
-            foreach (VaultLabelItemX currItem in labelItems)
+            try
             {
-                if (!_txidMappings.ContainsKey(currItem.TxID))
-                    continue;
-
-                string gitCommitId = _txidMappings.Where(s => s.Key.Equals(currItem.TxID)).First().Value;
-
-                if (gitCommitId != null && gitCommitId.Length > 0)
+                int ticks = 0;
+            
+                foreach (VaultLabelItemX currItem in labelItems)
                 {
-                    string gitLabelName = Regex.Replace(currItem.Label, "[\\W]", "_");
-                    gitAddTag(currItem.TxID + "_" + gitLabelName, gitCommitId, currItem.Comment);
+                    if (!_txidMappings.ContainsKey(currItem.TxID))
+                        continue;
+
+                    string gitCommitId = _txidMappings.Where(s => s.Key.Equals(currItem.TxID)).First().Value;
+
+                    if (gitCommitId != null && gitCommitId.Length > 0)
+                    {
+                        string gitLabelName = Regex.Replace(currItem.Label, "[\\W]", "_");
+                        ticks += gitAddTag(currItem.TxID + "_" + gitLabelName, gitCommitId, currItem.Comment);
+                    }
                 }
+                
+                //add ticks for git tags
+                if (null != Progress)
+                    Progress(ProgressSpecialVersionTags, ticks);
             }
-
-            ServerOperations.client.ClientInstance.EndLabelQuery(qryToken);
-            vaultLogout();
-
+            finally
+            {
+                //complete
+                ServerOperations.client.ClientInstance.EndLabelQuery(qryToken);
+                vaultLogout();
+                gitFinalize();
+            }
             return true;
         }
 

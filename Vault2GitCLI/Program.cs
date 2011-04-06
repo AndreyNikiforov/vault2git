@@ -163,6 +163,8 @@ namespace Vault2Git.CLI
                     Console.WriteLine("gc took {0}", timeSpan);
                 else if (Processor.ProgressSpecialVersionFinalize == version)
                     Console.WriteLine("finalization took {0}", timeSpan);
+                else if (Processor.ProgressSpecialVersionTags == version)
+                    Console.WriteLine("tags creation took {0}", timeSpan);
                 else
                     Console.WriteLine("processing version {0} took {1}", version, timeSpan);
             }
