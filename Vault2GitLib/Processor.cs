@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using VaultClientIntegrationLib;
 using VaultClientOperationsLib;
 using VaultLib;
@@ -50,9 +51,15 @@ namespace Vault2Git.Lib
         private const string _gitCommitCmd = @"commit --quiet --allow-empty --all --date=""{2}"" --author=""{0} <{0}@{1}>"" -F -";
         private const string _gitCheckoutCmd = "checkout --quiet --force {0}";
         private const string _gitBranchCmd = "branch";
+        private const string _gitAddTagCmd = @"tag {0} {1} -a -m ""{2}""";
 
         //constants
         private const string VaultTag = "[git-vault-id]";
+
+        /// <summary>
+        /// Maps Vault TransactionID to Git Commit SHA-1 Hash
+        /// </summary>
+        private const IDictionary<long, String> _txidMappings = new Dictionary<long, String>();
 
         /// <summary>
         /// version number reported to <see cref="Progress"/> when init is complete
@@ -294,6 +301,61 @@ namespace Vault2Git.Lib
             return Environment.TickCount - ticks;
         }
 
+        /// <summary>
+        /// Creates Git tags from Vault labels
+        /// </summary>
+        /// <returns></returns>
+        public bool CreateTagsFromLabels()
+        {
+            vaultLogin();
+
+            // Search for all labels recursively
+            string repositoryFolderPath = "$";
+
+            long objId = RepositoryUtil.FindVaultTreeObjectAtReposOrLocalPath(repositoryFolderPath).ID;
+            string qryToken;
+            long rowsRetMain;
+            long rowsRetRecur;
+
+            VaultLabelItemX[] labelItems;
+
+            ServerOperations.client.ClientInstance.BeginLabelQuery(repositoryFolderPath,
+                                                                       objId,
+                                                                       true, // get recursive
+                                                                       true, // get inherited
+                                                                       true, // get file items
+                                                                       true, // get folder items
+                                                                       0,
+                                                                       out rowsRetMain,
+                                                                       out rowsRetRecur,
+                                                                       out qryToken);
+
+
+            ServerOperations.client.ClientInstance.GetLabelQueryItems_Recursive(qryToken,
+                                                                                0,
+                                                                                (int)rowsRetRecur,
+                                                                                out labelItems);
+
+            foreach (VaultLabelItemX currItem in labelItems)
+            {
+                if (!_txidMappings.ContainsKey(currItem.TxID))
+                    continue;
+
+                string gitCommitId = _txidMappings.Where(s => s.Key.Equals(currItem.TxID)).First().Value;
+
+                if (gitCommitId != null && gitCommitId.Length > 0)
+                {
+                    string gitLabelName = Regex.Replace(currItem.Label, "[\\W]", "_");
+                    gitAddTag(currItem.TxID + "_" + gitLabelName, gitCommitId, currItem.Comment);
+                }
+            }
+
+            ServerOperations.client.ClientInstance.EndLabelQuery(qryToken);
+            vaultLogout();
+
+            return true;
+        }
+
         private int vaultGet(string repoPath, long version, long txId)
         {
             var ticks = Environment.TickCount;
@@ -444,6 +506,14 @@ namespace Vault2Git.Lib
         private int gitLog(string gitBranch, out string[] msg)
         {
             return runGitCommand(string.Format(_gitLastCommitInfoCmd, gitBranch), string.Empty, out msg);
+        }
+
+        private int gitAddTag(string gitTagName, string gitCommitId, string gitTagComment)
+        {
+            string[] msg;
+            return runGitCommand(string.Format(_gitAddTagCmd, gitTagName, gitCommitId, gitTagComment),
+                string.Empty,
+                out msg);
         }
 
         private int gitGC()
