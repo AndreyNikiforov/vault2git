@@ -16,6 +16,7 @@ namespace Vault2Git.CLI
             public bool UseConsole { get; protected set; }
             public bool UseCapsLock { get; protected set; }
             public bool SkipEmptyCommits { get; protected set; }
+            public bool IgnoreLabels { get; protected set; }
             public IEnumerable<string> Branches;
             public IEnumerable<string> Errors;
 
@@ -39,6 +40,8 @@ namespace Vault2Git.CLI
                         p.UseCapsLock = true;
                     else if (o.Equals("--skip-empty-commits"))
                         p.SkipEmptyCommits = true;
+                    else if (o.Equals("--ignore-labels"))
+                        p.IgnoreLabels = true;
                     else if (o.Equals("--help"))
                     {
                         errors.Add("Usage: vault2git [options]");
@@ -49,6 +52,7 @@ namespace Vault2Git.CLI
                         errors.Add("   --branch=<branch>       Process only one branch from config. Branch name should be in git terms. Default=all branches from config");
                         errors.Add("   --limit=<n>             Max number of versions to take from Vault for each branch");
                         errors.Add("   --skip-empty-commits    Do not create empty commits in Git");
+                        errors.Add("   --ignore-labels         Do not create Git tags from Vault labels");
                     }
                     else
                         if (o.StartsWith(_limitParam))
@@ -82,6 +86,7 @@ namespace Vault2Git.CLI
 
         private static bool _useCapsLock = false;
         private static bool _useConsole = false;
+        private static bool _ignoreLabels = false;
 
 
         /// <summary>
@@ -115,6 +120,7 @@ namespace Vault2Git.CLI
 
             _useConsole = param.UseConsole;
             _useCapsLock = param.UseCapsLock;
+            _ignoreLabels = param.IgnoreLabels;
 
             var processor = new Vault2Git.Lib.Processor()
                                 {
@@ -133,8 +139,11 @@ namespace Vault2Git.CLI
             processor.Pull
                 (
                     pathPairs.Where(p => param.Branches.Contains(p.Key))
-                    , 0 == param.Limit? 999999999 : param.Limit
+                    , 0 == param.Limit ? 999999999 : param.Limit
                 );
+
+            if (!_ignoreLabels)
+                processor.CreateTagsFromLabels();
 
 #if DEBUG
                         Console.WriteLine("Press ENTER");
@@ -154,6 +163,8 @@ namespace Vault2Git.CLI
                     Console.WriteLine("gc took {0}", timeSpan);
                 else if (Processor.ProgressSpecialVersionFinalize == version)
                     Console.WriteLine("finalization took {0}", timeSpan);
+                else if (Processor.ProgressSpecialVersionTags == version)
+                    Console.WriteLine("tags creation took {0}", timeSpan);
                 else
                     Console.WriteLine("processing version {0} took {1}", version, timeSpan);
             }
