@@ -239,7 +239,7 @@ namespace Vault2Git.Lib
             if (beginingLine >0 & endingLine > 0)
             {
                 lines.RemoveRange(beginingLine, endingLine - beginingLine + 1);
-                File.WriteAllLines(filePath, lines.ToArray());
+                File.WriteAllLines(filePath, lines.ToArray(), Encoding.UTF8);
             }
             return Environment.TickCount - ticks;
         }
@@ -282,9 +282,7 @@ namespace Vault2Git.Lib
         {
             var ticks = Environment.TickCount;
             var lines = File.ReadAllLines(filePath).ToList();
-            File.WriteAllLines(filePath, 
-                lines.Where(l => !l.Trim().StartsWith(@"""Scc")).ToArray()
-                );
+            File.WriteAllLines(filePath, lines.Where(l => !l.Trim().StartsWith(@"""Scc")).ToArray(), Encoding.UTF8);
             return Environment.TickCount - ticks;
         }
 
