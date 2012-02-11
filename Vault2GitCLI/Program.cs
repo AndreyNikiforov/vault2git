@@ -96,6 +96,7 @@ namespace Vault2Git.CLI
         static void Main(string[] args)
         {
             Console.WriteLine("Vault2Git -- converting history from Vault repositories to Git");
+            System.Console.InputEncoding = System.Text.Encoding.UTF8;
 
             //get configuration for branches
             var paths = ConfigurationManager.AppSettings["Convertor.Paths"];
