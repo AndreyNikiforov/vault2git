@@ -52,8 +52,14 @@
     <CodeAnalysisRuleSet>AllRules.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="DragnetLib, Version=4.0.6.15954, Culture=neutral, PublicKeyToken=14a8075ce88af4e0, processorArchitecture=MSIL" />
-    <Reference Include="SGDiff, Version=4.0.6.15954, Culture=neutral, PublicKeyToken=f3bc199665d82028, processorArchitecture=MSIL" />
+    <Reference Include="DragnetLib, Version=4.0.6.15954, Culture=neutral, PublicKeyToken=14a8075ce88af4e0, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>libs\VaultProClientAPI_6_1_0_30531\DragnetLib.dll</HintPath>
+    </Reference>
+    <Reference Include="ICSharpCode.SharpZipLib.NET20, Version=0.85.5.452, Culture=neutral, PublicKeyToken=1b03e6acf1164f73, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>libs\VaultProClientAPI_6_1_0_30531\ICSharpCode.SharpZipLib.NET20.dll</HintPath>
+    </Reference>
     <Reference Include="System" />
     <Reference Include="System.Core">
       <RequiredTargetFramework>3.5</RequiredTargetFramework>
@@ -66,24 +72,49 @@
     </Reference>
     <Reference Include="System.Data" />
     <Reference Include="System.Xml" />
-    <Reference Include="VaultClientIntegrationLib, Version=4.0.6.15954, Culture=neutral, PublicKeyToken=500623c275bd78a9, processorArchitecture=MSIL" />
-    <Reference Include="VaultClientNetLib, Version=4.0.6.15954, Culture=neutral, PublicKeyToken=e372e94840f8a4d3, processorArchitecture=MSIL" />
-    <Reference Include="VaultClientOperationsLib, Version=4.0.6.15954, Culture=neutral, PublicKeyToken=e372e94840f8a4d3, processorArchitecture=MSIL" />
-    <Reference Include="VaultLib, Version=4.0.6.15954, Culture=neutral, PublicKeyToken=a74d7badb9387c36, processorArchitecture=MSIL" />
-    <Reference Include="VCDiff, Version=4.0.6.15954, Culture=neutral, PublicKeyToken=4f75799f06837886, processorArchitecture=MSIL" />
+    <Reference Include="VaultClientIntegrationLib, Version=4.0.6.15954, Culture=neutral, PublicKeyToken=500623c275bd78a9, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>libs\VaultProClientAPI_6_1_0_30531\VaultClientIntegrationLib.dll</HintPath>
+    </Reference>
+    <Reference Include="VaultClientNetLib, Version=4.0.6.15954, Culture=neutral, PublicKeyToken=e372e94840f8a4d3, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>libs\VaultProClientAPI_6_1_0_30531\VaultClientNetLib.dll</HintPath>
+    </Reference>
+    <Reference Include="VaultClientOperationsLib, Version=4.0.6.15954, Culture=neutral, PublicKeyToken=e372e94840f8a4d3, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>libs\VaultProClientAPI_6_1_0_30531\VaultClientOperationsLib.dll</HintPath>
+    </Reference>
+    <Reference Include="VaultLib, Version=4.0.6.15954, Culture=neutral, PublicKeyToken=a74d7badb9387c36, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>libs\VaultProClientAPI_6_1_0_30531\VaultLib.dll</HintPath>
+    </Reference>
+    <Reference Include="VaultPluginLib, Version=6.1.0.30531, Culture=neutral, PublicKeyToken=fc84ae6bc3a25ec3, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>libs\VaultProClientAPI_6_1_0_30531\VaultPluginLib.dll</HintPath>
+    </Reference>
+    <Reference Include="VaultServiceBase, Version=6.1.0.30531, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>libs\VaultProClientAPI_6_1_0_30531\VaultServiceBase.dll</HintPath>
+    </Reference>
+    <Reference Include="VCDiff, Version=4.0.6.15954, Culture=neutral, PublicKeyToken=4f75799f06837886, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>libs\VaultProClientAPI_6_1_0_30531\VCDiff.dll</HintPath>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Processor.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <ItemGroup>
-    <Content Include="libs\VaultClientAPI_4_0_6_15954\DragnetLib.dll" />
-    <Content Include="libs\VaultClientAPI_4_0_6_15954\SGDiff.dll" />
-    <Content Include="libs\VaultClientAPI_4_0_6_15954\VaultClientIntegrationLib.dll" />
-    <Content Include="libs\VaultClientAPI_4_0_6_15954\VaultClientNetLib.dll" />
-    <Content Include="libs\VaultClientAPI_4_0_6_15954\VaultClientOperationsLib.dll" />
-    <Content Include="libs\VaultClientAPI_4_0_6_15954\VaultLib.dll" />
-    <Content Include="libs\VaultClientAPI_4_0_6_15954\VCDiff.dll" />
+    <Content Include="libs\VaultProClientAPI_6_1_0_30531\DragnetLib.dll" />
+    <Content Include="libs\VaultProClientAPI_6_1_0_30531\ICSharpCode.SharpZipLib.NET20.dll" />
+    <Content Include="libs\VaultProClientAPI_6_1_0_30531\VaultClientIntegrationLib.dll" />
+    <Content Include="libs\VaultProClientAPI_6_1_0_30531\VaultClientNetLib.dll" />
+    <Content Include="libs\VaultProClientAPI_6_1_0_30531\VaultClientOperationsLib.dll" />
+    <Content Include="libs\VaultProClientAPI_6_1_0_30531\VaultLib.dll" />
+    <Content Include="libs\VaultProClientAPI_6_1_0_30531\VaultPluginLib.dll" />
+    <Content Include="libs\VaultProClientAPI_6_1_0_30531\VaultServiceBase.dll" />
+    <Content Include="libs\VaultProClientAPI_6_1_0_30531\VCDiff.dll" />
   </ItemGroup>
   <ItemGroup>
     <BootstrapperPackage Include="Microsoft.Net.Client.3.5">
