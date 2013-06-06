@@ -342,21 +342,24 @@ namespace Vault2Git.Lib
             try
             {
                 int ticks = 0;
-            
-                foreach (VaultLabelItemX currItem in labelItems)
+
+                if (labelItems != null)
                 {
-                    if (!_txidMappings.ContainsKey(currItem.TxID))
-                        continue;
-
-                    string gitCommitId = _txidMappings.Where(s => s.Key.Equals(currItem.TxID)).First().Value;
-
-                    if (gitCommitId != null && gitCommitId.Length > 0)
+                    foreach (VaultLabelItemX currItem in labelItems)
                     {
-                        string gitLabelName = Regex.Replace(currItem.Label, "[\\W]", "_");
-                        ticks += gitAddTag(currItem.TxID + "_" + gitLabelName, gitCommitId, currItem.Comment);
+                        if (!_txidMappings.ContainsKey(currItem.TxID))
+                            continue;
+
+                        string gitCommitId = _txidMappings.Where(s => s.Key.Equals(currItem.TxID)).First().Value;
+
+                        if (gitCommitId != null && gitCommitId.Length > 0)
+                        {
+                            string gitLabelName = Regex.Replace(currItem.Label, "[\\W]", "_");
+                            ticks += gitAddTag(currItem.TxID + "_" + gitLabelName, gitCommitId, currItem.Comment);
+                        }
                     }
                 }
-                
+
                 //add ticks for git tags
                 if (null != Progress)
                     Progress(ProgressSpecialVersionTags, ticks);
@@ -374,11 +377,35 @@ namespace Vault2Git.Lib
         private int vaultGet(string repoPath, long version, long txId)
         {
             var ticks = Environment.TickCount;
-            //apply version to the repo folder
-            GetOperations.ProcessCommandGetVersion(
-                repoPath,
-                Convert.ToInt32(version),
-                new GetOptions()
+
+            try
+            {
+                //apply version to the repo folder
+                GetOperations.ProcessCommandGetVersion(
+                    repoPath,
+                    Convert.ToInt32(version),
+                    new GetOptions()
+                        {
+                            MakeWritable = MakeWritableType.MakeAllFilesWritable,
+                            Merge = MergeType.OverwriteWorkingCopy,
+                            OverrideEOL = VaultEOL.None,
+                            //remove working copy does not work -- bug http://support.sourcegear.com/viewtopic.php?f=5&t=11145
+                            PerformDeletions = PerformDeletionsType.RemoveWorkingCopy,
+                            SetFileTime = SetFileTimeType.Current,
+                            Recursive = true
+                        });
+                // sleep between operations so we don't overload the Vault Server
+                System.Threading.Thread.Sleep(TimeSpan.FromSeconds(0.2));
+            }
+            catch (Exception)
+            {
+                // if an error occurs, wait and then retry the operation. We may be running too fast for Vault
+                System.Threading.Thread.Sleep(TimeSpan.FromSeconds(5.0));
+
+                GetOperations.ProcessCommandGetVersion(
+                    repoPath,
+                    Convert.ToInt32(version),
+                    new GetOptions()
                     {
                         MakeWritable = MakeWritableType.MakeAllFilesWritable,
                         Merge = MergeType.OverwriteWorkingCopy,
@@ -388,6 +415,7 @@ namespace Vault2Git.Lib
                         SetFileTime = SetFileTimeType.Current,
                         Recursive = true
                     });
+            }
 
             //now process deletions, moves, and renames (due to vault bug)
             var allowedRequests = new int[]
