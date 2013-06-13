@@ -3,6 +3,11 @@ using System.Collections.Generic;
 using System.Configuration;
 using System.Linq;
 using System.Windows.Forms;
+using System.Xml;
+using System.Collections.Specialized;
+using System.Collections;
+using System.IO;
+using System.Text; 
 using Vault2Git.Lib;
 
 namespace Vault2Git.CLI
@@ -17,6 +22,8 @@ namespace Vault2Git.CLI
             public bool UseCapsLock { get; protected set; }
             public bool SkipEmptyCommits { get; protected set; }
             public bool IgnoreLabels { get; protected set; }
+            public string Paths { get; protected set; }
+            public string Work { get; protected set; }
             public IEnumerable<string> Branches;
             public IEnumerable<string> Errors;
 
@@ -26,6 +33,22 @@ namespace Vault2Git.CLI
 
             private const string _limitParam = "--limit=";
             private const string _branchParam = "--branch=";
+            private const string _pathsParam = "--paths=";
+            private const string _workParam = "--work=";
+
+            public static Params InitialParse(string[] args )
+            {
+               var p = new Params();
+               foreach (var o in args)
+               {
+                  if (o.StartsWith(_pathsParam))
+                  {
+                     p.Paths = o.Substring(_pathsParam.Length);
+                     break;
+                  }
+               }
+               return p;
+            }
 
             public static Params Parse(string[] args, IEnumerable<string> gitBranches)
             {
@@ -53,28 +76,36 @@ namespace Vault2Git.CLI
                         errors.Add("   --limit=<n>             Max number of versions to take from Vault for each branch");
                         errors.Add("   --skip-empty-commits    Do not create empty commits in Git");
                         errors.Add("   --ignore-labels         Do not create Git tags from Vault labels");
+                        errors.Add("   --paths=<paths>         paths to override setting in .config");
+                        errors.Add("   --work=<WorkingFolder>  WorkingFolder to override setting in .config. --work=. is most common");
                     }
-                    else
-                        if (o.StartsWith(_limitParam))
-                        {
-                            var l = o.Substring(_limitParam.Length);
-                            var max = 0;
-                            if (int.TryParse(l, out max))
-                                p.Limit = max;
-                            else
-                                errors.Add(string.Format("Incorrect limit ({0}). Use integer.", l));
-                        }
+                    else if (o.StartsWith(_limitParam))
+                     {
+                           var l = o.Substring(_limitParam.Length);
+                           var max = 0;
+                           if (int.TryParse(l, out max))
+                              p.Limit = max;
+                           else
+                              errors.Add(string.Format("Incorrect limit ({0}). Use integer.", l));
+                     }
+                     else if (o.StartsWith(_branchParam))
+                     {
+                        var b = o.Substring(_branchParam.Length);
+                        if (gitBranches.Contains(b))
+                           branches.Add(b);
                         else
-                            if (o.StartsWith(_branchParam))
-                            {
-                                var b = o.Substring(_limitParam.Length);
-                                if (gitBranches.Contains(b))
-                                    branches.Add(b);
-                                else
-                                    errors.Add(string.Format("Unknown branch {0}. Use one specified in .config", b));
-                            }
-                            else
-                                errors.Add(string.Format("Unknown option {0}", o));
+                           errors.Add(string.Format("Unknown branch {0}. Use one specified in .config", b));
+                     }
+                     else if (o.StartsWith(_pathsParam))
+                     {
+                        continue;
+                     }
+                     else if (o.StartsWith(_workParam))
+                     {
+                        p.Work = o.Substring(_workParam.Length);
+                     }
+                     else
+                        errors.Add(string.Format("Unknown option {0}", o));
                 }
                 p.Branches = 0 == branches.Count() 
                     ? gitBranches 
@@ -88,25 +119,65 @@ namespace Vault2Git.CLI
         private static bool _useConsole = false;
         private static bool _ignoreLabels = false;
 
-
         /// <summary>
         /// The main entry point for the application.
         /// </summary>
         //[STAThread]
         static void Main(string[] args)
         {
+            string paths = null;
+            string workingFolder = null;
+            System.Configuration.Configuration configuration = null;
+
             Console.WriteLine("Vault2Git -- converting history from Vault repositories to Git");
             System.Console.InputEncoding = System.Text.Encoding.UTF8;
 
-            //get configuration for branches
-            var paths = ConfigurationManager.AppSettings["Convertor.Paths"];
+            // First look for Config file in the current directory - allows for repository-based config files
+            string configPath = System.IO.Path.Combine(Environment.CurrentDirectory, "Vault2Git.exe.config");
+            if (File.Exists(configPath))
+            {
+               System.Configuration.ExeConfigurationFileMap configFileMap = new ExeConfigurationFileMap();
+               configFileMap.ExeConfigFilename = configPath;
+
+               configuration = ConfigurationManager.OpenMappedExeConfiguration(configFileMap, ConfigurationUserLevel.None);
+            }
+            else
+            {
+               // Get normal exe file config. 
+               // This is what happens by default when using ConfigurationManager.AppSettings["setting"] 
+               // to access config properties
+            #if DEBUG
+               string applicationName = Environment.GetCommandLineArgs()[0];
+            #else 
+               string applicationName = Environment.GetCommandLineArgs()[0]+ ".exe";
+            #endif
+
+               configPath = System.IO.Path.Combine(Environment.CurrentDirectory, applicationName);
+               configuration = ConfigurationManager.OpenExeConfiguration(configPath);
+            }
+
+            // Get access to the AppSettings properties in the chosen config file
+            AppSettingsSection appSettings = (AppSettingsSection)configuration.GetSection("appSettings");
+
+            Console.WriteLine("Using config file " + configPath );
+           
+            // Get Paths parameter first as its required for validation of branches parameter
+            var paramInitial = Params.InitialParse(args);
+            paths = paramInitial.Paths; 
+
+            if (paths == null)
+            {
+               //get configuration for branches
+               paths = appSettings.Settings["Convertor.Paths"].Value;
+            }
+
             var pathPairs = paths.Split(';')
                 .ToDictionary(
                 pair =>
                     pair.Split('~')[1], pair => pair.Split('~')[0]
                     );
 
-            //parse params
+            //parse rest of params
             var param = Params.Parse(args, pathPairs.Keys);
 
             //get count from param
@@ -122,16 +193,22 @@ namespace Vault2Git.CLI
             _useConsole = param.UseConsole;
             _useCapsLock = param.UseCapsLock;
             _ignoreLabels = param.IgnoreLabels;
+            workingFolder = param.Work;
+
+            if (workingFolder == null)
+            {
+               workingFolder = appSettings.Settings["Convertor.WorkingFolder"].Value;
+            }
 
             var processor = new Vault2Git.Lib.Processor()
                                 {
-                                    WorkingFolder = ConfigurationManager.AppSettings["Convertor.WorkingFolder"],
-                                    GitCmd = ConfigurationManager.AppSettings["Convertor.GitCmd"],
-                                    GitDomainName = ConfigurationManager.AppSettings["Git.DomainName"],
-                                    VaultServer = ConfigurationManager.AppSettings["Vault.Server"],
-                                    VaultRepository = ConfigurationManager.AppSettings["Vault.Repo"],
-                                    VaultUser = ConfigurationManager.AppSettings["Vault.User"],
-                                    VaultPassword = ConfigurationManager.AppSettings["Vault.Password"],
+                                    WorkingFolder = workingFolder,
+                                    GitCmd = appSettings.Settings["Convertor.GitCmd"].Value,
+                                    GitDomainName = appSettings.Settings["Git.DomainName"].Value,
+                                    VaultServer = appSettings.Settings["Vault.Server"].Value,
+                                    VaultRepository = appSettings.Settings["Vault.Repo"].Value,
+                                    VaultUser = appSettings.Settings["Vault.User"].Value,
+                                    VaultPassword = appSettings.Settings["Vault.Password"].Value,
                                     Progress = ShowProgress,
                                     SkipEmptyCommits = param.SkipEmptyCommits
                                 };

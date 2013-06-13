@@ -11,6 +11,7 @@ using VaultClientOperationsLib;
 using VaultLib;
 using System.Xml.XPath;
 using System.Xml;
+using System.Threading;
 
 namespace Vault2Git.Lib
 {
@@ -311,6 +312,10 @@ namespace Vault2Git.Lib
         /// <returns></returns>
         public bool CreateTagsFromLabels()
         {
+            Console.WriteLine( "Creating tags from labels...");
+
+            int ticks = Environment.TickCount;
+
             vaultLogin();
 
             // Search for all labels recursively
@@ -339,10 +344,11 @@ namespace Vault2Git.Lib
                                                                                 0,
                                                                                 (int)rowsRetRecur,
                                                                                 out labelItems);
+
+            ticks = Environment.TickCount - ticks;
+
             try
             {
-                int ticks = 0;
-            
                 foreach (VaultLabelItemX currItem in labelItems)
                 {
                     if (!_txidMappings.ContainsKey(currItem.TxID))
@@ -408,7 +414,11 @@ namespace Vault2Git.Lib
                     if (File.Exists(pathToDelete))
                         File.Delete(pathToDelete);
                     if (Directory.Exists(pathToDelete))
-                        Directory.Delete(pathToDelete, true);
+                    {
+                       Directory.Delete(pathToDelete, true);
+                       // Ensure its really deleted so iteration of directories by caller does not cause dir not exist exception
+                       Thread.Sleep(500);
+                    }
                 }
             return Environment.TickCount - ticks;
         }
@@ -457,6 +467,7 @@ namespace Vault2Git.Lib
             return unSetVaultWorkingFolder(vaultRepoPath);
         }
 
+        // vaultLogin is the user name as known in Vault e.g. 'robert' which needs to be mapped to rob.goodridge
         private int gitCommit(string vaultLogin, long vaultTrxid, string gitDomainName, string vaultCommitMessage, DateTime commitTimeStamp)
         {
             string gitCurrentBranch;
