@@ -62,6 +62,9 @@ Vault labels conversion
 
    Duplicate tag errors are usually caused by a label being moved on 2 or more files.
 
+Defects
+   Working Folder is not set back to its previous value. Workaround - run Vault Client to set it correctly.
+
 Last Updated: 2013-06-13
 Author: Andrey Nikiforov, Rob Goodridge
 
