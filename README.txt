@@ -48,8 +48,7 @@ Additional actions
 
 Invalid emails
 
-   If the vault user + domain does not map to the correct email address or desired name, use .mailmap to fix it up.
-   See git --help shortlog for more information
+	If the vault user + domain does not map to the correct email address or desired name, use .mailmap to fix it up.   See git --help shortlog for more information
 
 Vault labels conversion
 
@@ -62,11 +61,11 @@ Vault labels conversion
 	the label out of Vault and then commit the changes into Git. A simple method would be to branch all labels off the 
 	root of master and commit them there. At least it will be recorded truly.
 
-   Duplicate tag errors are usually caused by a label being moved on 2 or more files.
+	Duplicate tag errors are usually caused by a label being moved on 2 or more files.
 
 Defects
 
-   Working Folder is not set back to its previous value. Workaround - run Vault Client to set it correctly.
+	Working Folder is not set back to its previous value. Workaround - run Vault Client to set it correctly.
 
 Last Updated: 2013-06-13
 Author: Andrey Nikiforov, Rob Goodridge
