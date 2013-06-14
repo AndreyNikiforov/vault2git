@@ -47,10 +47,12 @@ Additional actions
 	dumb server (e.g. read-only http sharing with iis)
 
 Invalid emails
+
    If the vault user + domain does not map to the correct email address or desired name, use .mailmap to fix it up.
    See git --help shortlog for more information
 
 Vault labels conversion
+
 	Vault labels support a lot more characters than git tags. For compatibility, all non alphanumeric characters for
 	git tags are replaced with "_". Git tag can only be created if the related git commit exists. Vault labels
 	comments are added as git tag comments.
@@ -63,6 +65,7 @@ Vault labels conversion
    Duplicate tag errors are usually caused by a label being moved on 2 or more files.
 
 Defects
+
    Working Folder is not set back to its previous value. Workaround - run Vault Client to set it correctly.
 
 Last Updated: 2013-06-13
