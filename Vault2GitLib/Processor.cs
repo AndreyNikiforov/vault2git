@@ -380,20 +380,45 @@ namespace Vault2Git.Lib
         private int vaultGet(string repoPath, long version, long txId)
         {
             var ticks = Environment.TickCount;
-            //apply version to the repo folder
-            GetOperations.ProcessCommandGetVersion(
-                repoPath,
-                Convert.ToInt32(version),
-                new GetOptions()
-                    {
-                        MakeWritable = MakeWritableType.MakeAllFilesWritable,
-                        Merge = MergeType.OverwriteWorkingCopy,
-                        OverrideEOL = VaultEOL.None,
-                        //remove working copy does not work -- bug http://support.sourcegear.com/viewtopic.php?f=5&t=11145
-                        PerformDeletions = PerformDeletionsType.RemoveWorkingCopy,
-                        SetFileTime = SetFileTimeType.Current,
-                        Recursive = true
-                    });
+
+            try
+            {
+               //apply version to the repo folder
+               GetOperations.ProcessCommandGetVersion(
+                   repoPath,
+                   Convert.ToInt32(version),
+                   new GetOptions()
+                       {
+                           MakeWritable = MakeWritableType.MakeAllFilesWritable,
+                           Merge = MergeType.OverwriteWorkingCopy,
+                           OverrideEOL = VaultEOL.None,
+                           //remove working copy does not work -- bug http://support.sourcegear.com/viewtopic.php?f=5&t=11145
+                           PerformDeletions = PerformDeletionsType.RemoveWorkingCopy,
+                           SetFileTime = SetFileTimeType.Modification,
+                           Recursive = true
+                       });
+            }
+            catch (Exception)
+            {
+               Console.WriteLine("Exception getting Version from Vault repo. Waiting 5 secs and retrying...");
+
+               // if an error occurs, wait and then retry the operation. We may be running too fast for Vault
+               System.Threading.Thread.Sleep( TimeSpan.FromSeconds(5.0) );
+
+               GetOperations.ProcessCommandGetVersion(
+                   repoPath,
+                   Convert.ToInt32(version),
+                   new GetOptions()
+                   {
+                      MakeWritable = MakeWritableType.MakeAllFilesWritable,
+                      Merge = MergeType.OverwriteWorkingCopy,
+                      OverrideEOL = VaultEOL.None,
+                      //remove working copy does not work -- bug http://support.sourcegear.com/viewtopic.php?f=5&t=11145
+                      PerformDeletions = PerformDeletionsType.RemoveWorkingCopy,
+                      SetFileTime = SetFileTimeType.Modification,
+                      Recursive = true
+                   });
+            }
 
             //now process deletions, moves, and renames (due to vault bug)
             var allowedRequests = new int[]
