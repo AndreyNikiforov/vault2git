@@ -95,11 +95,6 @@ namespace Vault2Git.Lib
         {
             int ticks = 0;
 
-            // Clean out any crap so we only commit on top of what is already in Git repo.
-            // Eg. if previous run of this program crashed or some editing has been done
-            gitReset();
-            gitClean();
-
             //get git current branch name
             string gitCurrentBranch;
             ticks += this.gitCurrentBranch(out gitCurrentBranch);
@@ -153,6 +148,57 @@ namespace Vault2Git.Lib
                            foreach (VaultTxDetailHistoryItem txdetailitem in txnInfo.items)
                            {
                               // Apply the changes from vault of the correct version for this file 
+
+                              // Do deletions, renames and moves ourselves
+                              if (txdetailitem.RequestType == VaultRequestType.Delete)
+                              {
+                                 // Convert the Vault path to a file system path
+                                 String   ItemPath1 = String.Copy( txdetailitem.ItemPath1 );
+                                 ItemPath1 = ItemPath1.Replace( vaultRepoPath, WorkingFolder );
+                                 ItemPath1 = ItemPath1.Replace('/', '\\');
+
+                                 if (File.Exists(ItemPath1))
+                                 {
+                                    File.Delete(ItemPath1);
+                                 }
+
+                                 if (Directory.Exists(ItemPath1))
+                                 {
+                                    Directory.Delete(ItemPath1, true);
+                                 }
+
+                                 continue;
+                              }
+                              else if (txdetailitem.RequestType == VaultRequestType.Move ||
+                                       txdetailitem.RequestType == VaultRequestType.Rename)
+                              {
+                                 // Convert the Vault path to a file system path
+                                 String ItemPath1 = String.Copy(txdetailitem.ItemPath1);
+                                 String ItemPath2 = String.Copy(txdetailitem.ItemPath2);
+
+                                 ItemPath1 = ItemPath1.Replace(vaultRepoPath, WorkingFolder);
+                                 ItemPath1 = ItemPath1.Replace('/', '\\');
+
+                                 ItemPath2 = ItemPath2.Replace(vaultRepoPath, WorkingFolder);
+                                 ItemPath2 = ItemPath2.Replace('/', '\\');
+
+                                 if (File.Exists(ItemPath1))
+                                 {
+                                    File.Move(ItemPath1, ItemPath2);
+                                 }
+
+                                 if (Directory.Exists(ItemPath1))
+                                 {
+                                    Directory.Move(ItemPath1, ItemPath2);
+                                 }
+
+                                 continue;
+                              }
+                              else if (txdetailitem.RequestType == VaultRequestType.AddFolder)
+                              {
+                                 // Git doesn't add folders
+                                 continue;
+                              }
 
                               ticks = vaultGetFile( vaultRepoPath, txdetailitem );
 
@@ -467,9 +513,9 @@ namespace Vault2Git.Lib
            //now process deletions, moves, and renames (due to vault bug)
            var allowedRequests = new int[]
                                       {
-                                          9, //delete
-                                          12, //move
-                                          15 //rename
+                                          VaultRequestType.Delete,
+                                          VaultRequestType.Move, 
+                                          VaultRequestType.Rename
                                       };
            foreach (var item in ServerOperations.ProcessCommandTxDetail(txId).items
                .Where(i => allowedRequests.Contains(i.RequestType)))
@@ -504,9 +550,9 @@ namespace Vault2Git.Lib
            //now process deletions, moves, and renames (due to vault bug)
            var allowedRequests = new int[]
                                       {
-                                          9, //delete
-                                          12, //move
-                                          15 //rename
+                                          VaultRequestType.Delete,
+                                          VaultRequestType.Move, 
+                                          VaultRequestType.Rename
                                       };
            if (allowedRequests.Contains(txdetailitem.RequestType))
 
