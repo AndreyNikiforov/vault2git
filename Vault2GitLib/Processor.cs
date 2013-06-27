@@ -15,6 +15,38 @@ using System.Threading;
 
 namespace Vault2Git.Lib
 {
+    public static class Statics
+    {
+       public static String Replace(this String str, string oldValue, string newValue, StringComparison comparision)
+       {
+          StringBuilder sb = new StringBuilder();
+
+          int previousIndex = 0;
+          int index = str.IndexOf(oldValue, comparision);
+          while (index != -1)
+          {
+             sb.Append(str.Substring(previousIndex, index - previousIndex));
+             sb.Append(newValue);
+             index += oldValue.Length;
+
+             previousIndex = index;
+             index = str.IndexOf(oldValue, index, comparision);
+          }
+          sb.Append(str.Substring(previousIndex));
+
+          return sb.ToString();
+       }
+
+       public static void CreateDirectory(DirectoryInfo directory)
+       {
+          if (!directory.Parent.Exists)
+          {
+             CreateDirectory(directory.Parent);
+          }
+          directory.Create();
+       }
+    }
+
     public class Processor
     {
         /// <summary>
@@ -139,6 +171,8 @@ namespace Vault2Git.Lib
                     var counter = 0;
                     foreach (var version in versionsToProcess)
                     {
+                        ticks = Environment.TickCount;
+
                         // Obtain just the ChangeSet for this Version of the repo
                         TxInfo txnInfo = null;
                         try
@@ -147,14 +181,12 @@ namespace Vault2Git.Lib
                            txnInfo = ServerOperations.ProcessCommandTxDetail(version.Value.TrxId);
                            foreach (VaultTxDetailHistoryItem txdetailitem in txnInfo.items)
                            {
-                              // Apply the changes from vault of the correct version for this file 
-
                               // Do deletions, renames and moves ourselves
                               if (txdetailitem.RequestType == VaultRequestType.Delete)
                               {
                                  // Convert the Vault path to a file system path
                                  String   ItemPath1 = String.Copy( txdetailitem.ItemPath1 );
-                                 ItemPath1 = ItemPath1.Replace( vaultRepoPath, WorkingFolder );
+                                 ItemPath1 = ItemPath1.Replace(vaultRepoPath, WorkingFolder, StringComparison.CurrentCultureIgnoreCase);
                                  ItemPath1 = ItemPath1.Replace('/', '\\');
 
                                  if (File.Exists(ItemPath1))
@@ -172,35 +204,23 @@ namespace Vault2Git.Lib
                               else if (txdetailitem.RequestType == VaultRequestType.Move ||
                                        txdetailitem.RequestType == VaultRequestType.Rename)
                               {
-                                 // Convert the Vault path to a file system path
-                                 String ItemPath1 = String.Copy(txdetailitem.ItemPath1);
-                                 String ItemPath2 = String.Copy(txdetailitem.ItemPath2);
-
-                                 ItemPath1 = ItemPath1.Replace(vaultRepoPath, WorkingFolder);
-                                 ItemPath1 = ItemPath1.Replace('/', '\\');
-
-                                 ItemPath2 = ItemPath2.Replace(vaultRepoPath, WorkingFolder);
-                                 ItemPath2 = ItemPath2.Replace('/', '\\');
-
-                                 if (File.Exists(ItemPath1))
-                                 {
-                                    File.Move(ItemPath1, ItemPath2);
-                                 }
-
-                                 if (Directory.Exists(ItemPath1))
-                                 {
-                                    Directory.Move(ItemPath1, ItemPath2);
-                                 }
-
+                                 ProcessFileItem(vaultRepoPath, WorkingFolder, txdetailitem, true);
+                                 continue;
+                              }
+                              else if (txdetailitem.RequestType == VaultRequestType.Share)
+                              {
+                                 ProcessFileItem(vaultRepoPath, WorkingFolder, txdetailitem, false);
                                  continue;
                               }
                               else if (txdetailitem.RequestType == VaultRequestType.AddFolder)
                               {
-                                 // Git doesn't add folders
+                                 // Git doesn't add empty folders
                                  continue;
                               }
 
-                              ticks = vaultGetFile( vaultRepoPath, txdetailitem );
+                              // Apply the changes from vault of the correct version for this file 
+
+                              vaultGetFile( vaultRepoPath, txdetailitem );
 
                               if (File.Exists(vaultRepoPath))
                               {
@@ -239,7 +259,8 @@ namespace Vault2Git.Lib
                            // If we did not need this code then we would not need to use the Working Directory which would be a cleaner solution.
                            try
                            {
-                              ticks = vaultGetFolder(vaultRepoPath, version.Key, version.Value.TrxId);
+                              vaultGetFolder(vaultRepoPath, version.Key, version.Value.TrxId);
+
                               //change all sln files
                               Directory.GetFiles(
                                   WorkingFolder,
@@ -274,7 +295,8 @@ namespace Vault2Git.Lib
                               throw new Exception("Cannot get transaction details for " + version.Value.TrxId);
                            }
                         }
-                        
+
+                        ticks = Environment.TickCount - ticks;
 
                         //get vault version info
                         var info = vaultVersions[version.Key];
@@ -491,10 +513,8 @@ namespace Vault2Git.Lib
             return true;
         }
 
-        private int vaultGetFolder(string repoPath, long version, long txId)
+        private void vaultGetFolder(string repoPath, long version, long txId)
         {
-           var ticks = Environment.TickCount;
-
            try
            {
               //apply version to the repo folder
@@ -519,7 +539,7 @@ namespace Vault2Git.Lib
                                       };
            foreach (var item in ServerOperations.ProcessCommandTxDetail(txId).items
                .Where(i => allowedRequests.Contains(i.RequestType)))
-
+           {
               //delete file
               //check if it is within current branch
               if (item.ItemPath1.StartsWith(repoPath, StringComparison.CurrentCultureIgnoreCase))
@@ -535,13 +555,11 @@ namespace Vault2Git.Lib
                     Thread.Sleep(500);
                  }
               }
-           return Environment.TickCount - ticks;
+           }
         }
 
-        private int vaultGetFile(string repoPath, VaultTxDetailHistoryItem txdetailitem)
+        private void vaultGetFile(string repoPath, VaultTxDetailHistoryItem txdetailitem)
         {
-           var ticks = Environment.TickCount;
-
            // Allow exception to percolate up. Presume its due to a move, rename or delete
 
            //apply version to the repo folder
@@ -555,7 +573,7 @@ namespace Vault2Git.Lib
                                           VaultRequestType.Rename
                                       };
            if (allowedRequests.Contains(txdetailitem.RequestType))
-
+           {
               //delete file
               //check if it is within current branch
               if (txdetailitem.ItemPath1.StartsWith(repoPath, StringComparison.CurrentCultureIgnoreCase))
@@ -571,7 +589,7 @@ namespace Vault2Git.Lib
                     Thread.Sleep(500);
                  }
               }
-           return Environment.TickCount - ticks;
+           }
         }
 
         private void vaultProcessCommandGetVersion(string repoPath, long version, bool recursive)
@@ -592,6 +610,85 @@ namespace Vault2Git.Lib
                });
         }
 
+        public static void ProcessFileItem( String vaultRepoPath, String workingFolder, VaultTxDetailHistoryItem txdetailitem, bool moveFiles )
+        {
+            // Convert the Vault path to a file system path
+            String ItemPath1 = String.Copy(txdetailitem.ItemPath1);
+            String ItemPath2 = String.Copy(txdetailitem.ItemPath2);
+
+            ItemPath1 = ItemPath1.Replace(vaultRepoPath, workingFolder, StringComparison.CurrentCultureIgnoreCase);
+            ItemPath1 = ItemPath1.Replace('/', '\\');
+
+            ItemPath2 = ItemPath2.Replace(vaultRepoPath, workingFolder, StringComparison.CurrentCultureIgnoreCase);
+            ItemPath2 = ItemPath2.Replace('/', '\\');
+
+            if (File.Exists(ItemPath1))
+            {
+               string directory2 = Path.GetDirectoryName(ItemPath2);
+               if (!Directory.Exists(directory2))
+               {
+                  Directory.CreateDirectory(directory2);
+               }
+
+               if (moveFiles)
+               {
+                  File.Move(ItemPath1, ItemPath2);
+               }
+               else
+               {
+                  File.Copy(ItemPath1, ItemPath2);
+               }
+            }
+            else if (Directory.Exists(ItemPath1))
+            {
+               if (moveFiles)
+               {
+                  Directory.Move(ItemPath1, ItemPath2);
+               }
+               else
+               {
+                  DirectoryCopy(ItemPath1, ItemPath2, true);
+               }
+            }
+        }
+
+        private static void DirectoryCopy(string sourceDirName, string destDirName, bool copySubDirs)
+        {
+           // Get the subdirectories for the specified directory.
+           DirectoryInfo dir = new DirectoryInfo(sourceDirName);
+           DirectoryInfo[] dirs = dir.GetDirectories();
+
+           if (!dir.Exists)
+           {
+              throw new DirectoryNotFoundException(
+                  "Source directory does not exist or could not be found: "
+                  + sourceDirName);
+           }
+
+           // If the destination directory doesn't exist, create it. 
+           if (!Directory.Exists(destDirName))
+           {
+              Directory.CreateDirectory(destDirName);
+           }
+
+           // Get the files in the directory and copy them to the new location.
+           FileInfo[] files = dir.GetFiles();
+           foreach (FileInfo file in files)
+           {
+              string temppath = Path.Combine(destDirName, file.Name);
+              file.CopyTo(temppath, false);
+           }
+
+           // If copying subdirectories, copy them and their contents to new location. 
+           if (copySubDirs)
+           {
+              foreach (DirectoryInfo subdir in dirs)
+              {
+                 string temppath = Path.Combine(destDirName, subdir.Name);
+                 DirectoryCopy(subdir.FullName, temppath, copySubDirs);
+              }
+           }
+        }
 
         struct VaultVersionInfo
         {
