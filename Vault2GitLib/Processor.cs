@@ -560,7 +560,8 @@ namespace Vault2Git.Lib
 
         private void vaultGetFile(string repoPath, VaultTxDetailHistoryItem txdetailitem)
         {
-           // Allow exception to percolate up. Presume its due to a move, rename or delete
+           // Allow exception to percolate up. Presume its due to a file missing from the latest Version 
+           // thats in this Version. That is, this file is later deleted, moved or renamed.
 
            //apply version to the repo folder
            vaultProcessCommandGetVersion( txdetailitem.ItemPath1, txdetailitem.Version, false );
