@@ -186,19 +186,23 @@ namespace Vault2Git.Lib
                               {
                                  // Convert the Vault path to a file system path
                                  String   ItemPath1 = String.Copy( txdetailitem.ItemPath1 );
-                                 ItemPath1 = ItemPath1.Replace(vaultRepoPath, WorkingFolder, StringComparison.CurrentCultureIgnoreCase);
-                                 ItemPath1 = ItemPath1.Replace('/', '\\');
 
-                                 if (File.Exists(ItemPath1))
+                                 // Ensure the file is within the folder we are working with. 
+                                 if (ItemPath1.StartsWith(vaultRepoPath, true, System.Globalization.CultureInfo.CurrentCulture))
                                  {
-                                    File.Delete(ItemPath1);
-                                 }
+                                    ItemPath1 = ItemPath1.Replace(vaultRepoPath, WorkingFolder, StringComparison.CurrentCultureIgnoreCase);
+                                    ItemPath1 = ItemPath1.Replace('/', '\\');
 
-                                 if (Directory.Exists(ItemPath1))
-                                 {
-                                    Directory.Delete(ItemPath1, true);
-                                 }
+                                    if (File.Exists(ItemPath1))
+                                    {
+                                       File.Delete(ItemPath1);
+                                    }
 
+                                    if (Directory.Exists(ItemPath1))
+                                    {
+                                       Directory.Delete(ItemPath1, true);
+                                    }
+                                 }
                                  continue;
                               }
                               else if (txdetailitem.RequestType == VaultRequestType.Move ||
@@ -617,6 +621,27 @@ namespace Vault2Git.Lib
             String ItemPath1 = String.Copy(txdetailitem.ItemPath1);
             String ItemPath2 = String.Copy(txdetailitem.ItemPath2);
 
+            // Ensure the files are withing the folder we are working with. 
+            // If the source path is outside the current branch, throw an exception and let vault handle the processing because
+            // we do not have the correct state of files outside the current branch.
+            // If the target path is outside, ignore a file copy and delete a file move.
+            // E.g. A Share can be shared outside of the branch we are working with
+            bool ItemPath1WithinCurrentBranch = ItemPath1.StartsWith(vaultRepoPath, true, System.Globalization.CultureInfo.CurrentCulture);
+            bool ItemPath2WithinCurrentBranch = ItemPath2.StartsWith(vaultRepoPath, true, System.Globalization.CultureInfo.CurrentCulture);
+
+            if (!ItemPath1WithinCurrentBranch)
+            {
+               throw new FileNotFoundException(
+                  "Source file is outside the current branch: "
+                  + ItemPath1);
+            }
+
+            // Don't copy files outside of the branch
+            if (!moveFiles && !ItemPath2WithinCurrentBranch)
+            {
+               return;
+            }
+
             ItemPath1 = ItemPath1.Replace(vaultRepoPath, workingFolder, StringComparison.CurrentCultureIgnoreCase);
             ItemPath1 = ItemPath1.Replace('/', '\\');
 
@@ -631,9 +656,22 @@ namespace Vault2Git.Lib
                   Directory.CreateDirectory(directory2);
                }
 
+               if (ItemPath2WithinCurrentBranch && File.Exists(ItemPath2))
+               {
+                  File.Delete(ItemPath2);
+               }
+
                if (moveFiles)
                {
-                  File.Move(ItemPath1, ItemPath2);
+                  // If target is outside of current branch, just delete the source file
+                  if (!ItemPath2WithinCurrentBranch)
+                  {
+                     File.Delete(ItemPath1);
+                  }
+                  else
+                  {
+                     File.Move(ItemPath1, ItemPath2);
+                  }
                }
                else
                {
@@ -644,7 +682,15 @@ namespace Vault2Git.Lib
             {
                if (moveFiles)
                {
-                  Directory.Move(ItemPath1, ItemPath2);
+                  // If target is outside of current branch, just delete the source directory
+                  if (!ItemPath2WithinCurrentBranch)
+                  {
+                     Directory.Delete(ItemPath1);
+                  }
+                  else
+                  {
+                     Directory.Move(ItemPath1, ItemPath2);
+                  }
                }
                else
                {
