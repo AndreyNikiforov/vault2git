@@ -59,6 +59,8 @@ namespace Vault2Git.Lib
         /// </summary>
         public string WorkingFolder;
 
+        public string OriginalWorkingFolder = null;
+
         public string VaultServer;
         public string VaultUser;
         public string VaultPassword;
@@ -323,7 +325,11 @@ namespace Vault2Git.Lib
                         if (counter >= limitCount)
                             break;
                     }
-                    ticks = vaultFinalize(vaultRepoPath);
+
+                    if (versionsToProcess.Count() > 0)
+                    {
+                       ticks = vaultFinalize(vaultRepoPath);
+                    }
                 }
             }
             finally
@@ -894,6 +900,18 @@ namespace Vault2Git.Lib
         private int setVaultWorkingFolder(string repoPath)
         {
             var ticks = Environment.TickCount;
+
+            // Save the current working folder
+            SortedList list = ServerOperations.GetWorkingFolderAssignments();
+            foreach (DictionaryEntry dict in list)
+            {
+               if (dict.Key.ToString().Equals(repoPath, StringComparison.OrdinalIgnoreCase))
+               {
+                  OriginalWorkingFolder = dict.Value.ToString();
+                  break;
+               }
+            }
+
             ServerOperations.SetWorkingFolder(repoPath, this.WorkingFolder, true);
             return Environment.TickCount - ticks;
         }
@@ -901,14 +919,21 @@ namespace Vault2Git.Lib
         private int unSetVaultWorkingFolder(string repoPath)
         {
             var ticks = Environment.TickCount;
+
             //remove any assignment first
             //it is case sensitive, so we have to find how it is recorded first
             var exPath = ServerOperations.GetWorkingFolderAssignments()
-                .Cast<DictionaryEntry>()
-                .Select(e => e.Key.ToString())
-                .Where(e => repoPath.Equals(e, StringComparison.OrdinalIgnoreCase)).FirstOrDefault();
+                  .Cast<DictionaryEntry>()
+                  .Select(e => e.Key.ToString())
+                  .Where(e => repoPath.Equals(e, StringComparison.OrdinalIgnoreCase)).FirstOrDefault();
             if (null != exPath)
-                ServerOperations.RemoveWorkingFolder(exPath);
+               ServerOperations.RemoveWorkingFolder(exPath);
+
+            if (OriginalWorkingFolder != null)
+            {
+               ServerOperations.SetWorkingFolder(repoPath, OriginalWorkingFolder, true);
+               OriginalWorkingFolder = null;
+            }
             return Environment.TickCount - ticks;
         }
         private int runGitCommand(string cmd, string stdInput, out string[] stdOutput)
