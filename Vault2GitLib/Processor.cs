@@ -339,6 +339,7 @@ namespace Vault2Git.Lib
                                                                                 0,
                                                                                 (int)rowsRetRecur,
                                                                                 out labelItems);
+            if (labelItems == null) labelItems = new VaultLabelItemX[0];
             try
             {
                 int ticks = 0;
