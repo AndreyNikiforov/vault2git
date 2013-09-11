@@ -406,9 +406,21 @@ namespace Vault2Git.Lib
                     var pathToDelete = Path.Combine(this.WorkingFolder, item.ItemPath1.Substring(repoPath.Length + 1));
                     //Console.WriteLine("delete {0} => {1}", item.ItemPath1, pathToDelete);
                     if (File.Exists(pathToDelete))
-                        File.Delete(pathToDelete);
+                    {
+                        try
+                        {
+                            File.Delete(pathToDelete);
+                        }
+                        catch (UnauthorizedAccessException) { /* don't worry about it */ }
+                    }
                     if (Directory.Exists(pathToDelete))
-                        Directory.Delete(pathToDelete, true);
+                    {
+                        try
+                        {
+                            Directory.Delete(pathToDelete, true);
+                        }
+                        catch (UnauthorizedAccessException) { /* don't worry about it */ }
+                    }
                 }
             return Environment.TickCount - ticks;
         }
