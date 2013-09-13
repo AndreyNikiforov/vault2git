@@ -375,19 +375,42 @@ namespace Vault2Git.Lib
         {
             var ticks = Environment.TickCount;
             //apply version to the repo folder
-            GetOperations.ProcessCommandGetVersion(
-                repoPath,
-                Convert.ToInt32(version),
-                new GetOptions()
-                    {
-                        MakeWritable = MakeWritableType.MakeAllFilesWritable,
-                        Merge = MergeType.OverwriteWorkingCopy,
-                        OverrideEOL = VaultEOL.None,
-                        //remove working copy does not work -- bug http://support.sourcegear.com/viewtopic.php?f=5&t=11145
-                        PerformDeletions = PerformDeletionsType.RemoveWorkingCopy,
-                        SetFileTime = SetFileTimeType.Current,
-                        Recursive = true
-                    });
+            try
+            {
+                GetOperations.ProcessCommandGetVersion(
+                    repoPath,
+                    Convert.ToInt32(version),
+                    new GetOptions()
+                        {
+                            MakeWritable = MakeWritableType.MakeAllFilesWritable,
+                            Merge = MergeType.OverwriteWorkingCopy,
+                            OverrideEOL = VaultEOL.None,
+                            //remove working copy does not work -- bug http://support.sourcegear.com/viewtopic.php?f=5&t=11145
+                            PerformDeletions = PerformDeletionsType.RemoveWorkingCopy,
+                            SetFileTime = SetFileTimeType.Current,
+                            Recursive = true
+                        });
+            }
+            catch
+            {
+                // System.Exception: $/foo/bar/baz has no working folder set.
+                // happens if a directory name changed. 
+                // therefore, if an Exception happened try to get the commit outside of the working folder.
+                GetOperations.ProcessCommandGetVersionToLocationOutsideWorkingFolder(
+                    repoPath,
+                    Convert.ToInt32(version),
+                    new GetOptions()
+                        {
+                            MakeWritable = MakeWritableType.MakeAllFilesWritable,
+                            Merge = MergeType.OverwriteWorkingCopy,
+                            OverrideEOL = VaultEOL.None,
+                            //remove working copy does not work -- bug http://support.sourcegear.com/viewtopic.php?f=5&t=11145
+                            PerformDeletions = PerformDeletionsType.RemoveWorkingCopy,
+                            SetFileTime = SetFileTimeType.Current,
+                            Recursive = true
+                        },
+                    this.WorkingFolder);
+            }
 
             //now process deletions, moves, and renames (due to vault bug)
             var allowedRequests = new int[]
