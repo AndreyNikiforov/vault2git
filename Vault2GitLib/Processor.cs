@@ -426,9 +426,14 @@ namespace Vault2Git.Lib
                 //check if it is within current branch
                 if (item.ItemPath1.StartsWith(repoPath, StringComparison.CurrentCultureIgnoreCase))
                 {
-                    var pathToDelete = Path.Combine(this.WorkingFolder, item.ItemPath1.Substring(repoPath.Length + 1));
+
+                    string pathToDelete = null;
+                    if (!string.IsNullOrEmpty(item.ItemPath1) && item.ItemPath1.Length >= repoPath.Length + 1)
+                    {
+                        pathToDelete = Path.Combine(this.WorkingFolder, item.ItemPath1.Substring(repoPath.Length + 1));
+                    }
                     //Console.WriteLine("delete {0} => {1}", item.ItemPath1, pathToDelete);
-                    if (File.Exists(pathToDelete))
+                    if (pathToDelete != null && File.Exists(pathToDelete))
                     {
                         try
                         {
@@ -436,7 +441,7 @@ namespace Vault2Git.Lib
                         }
                         catch (UnauthorizedAccessException) { /* don't worry about it */ }
                     }
-                    if (Directory.Exists(pathToDelete))
+                    if (pathToDelete != null && Directory.Exists(pathToDelete))
                     {
                         try
                         {
