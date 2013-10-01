@@ -267,8 +267,8 @@ namespace Vault2Git.Lib
             }
             catch
             {
-                Console.WriteLine("Failed for {0}", filePath);
-                throw;
+                Console.WriteLine("Failed to remove SCC from csproj for {0}", filePath);
+                //throw;
             }
             return Environment.TickCount - ticks;
         }
