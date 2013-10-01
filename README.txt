@@ -55,3 +55,10 @@ Last Updated: 2011-04-06
 Author: Andrey Nikiforov
 Contributor: Jevgeni Zelenkov ( github.com/jzelenkov )
 Location: github.com/AndreyNikiforov/vault2git
+
+## Brian Reiter: Changes Since Fork ###
+- Update for Vault 6 Pro API
+- catch UnauthorizedAccessException (race condition?) attempting to delete nonexistent file
+- catch and handle exception thrown if vault directory name changed during commit history
+- remove vault 4 DLLs.
+ 

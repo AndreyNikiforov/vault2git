@@ -267,8 +267,8 @@ namespace Vault2Git.Lib
             }
             catch
             {
-                Console.WriteLine("Failed for {0}", filePath);
-                throw;
+                Console.WriteLine("Failed to remove SCC from csproj for {0}", filePath);
+                //throw;
             }
             return Environment.TickCount - ticks;
         }
@@ -375,19 +375,42 @@ namespace Vault2Git.Lib
         {
             var ticks = Environment.TickCount;
             //apply version to the repo folder
-            GetOperations.ProcessCommandGetVersion(
-                repoPath,
-                Convert.ToInt32(version),
-                new GetOptions()
-                    {
-                        MakeWritable = MakeWritableType.MakeAllFilesWritable,
-                        Merge = MergeType.OverwriteWorkingCopy,
-                        OverrideEOL = VaultEOL.None,
-                        //remove working copy does not work -- bug http://support.sourcegear.com/viewtopic.php?f=5&t=11145
-                        PerformDeletions = PerformDeletionsType.RemoveWorkingCopy,
-                        SetFileTime = SetFileTimeType.Current,
-                        Recursive = true
-                    });
+            try
+            {
+                GetOperations.ProcessCommandGetVersion(
+                    repoPath,
+                    Convert.ToInt32(version),
+                    new GetOptions()
+                        {
+                            MakeWritable = MakeWritableType.MakeAllFilesWritable,
+                            Merge = MergeType.OverwriteWorkingCopy,
+                            OverrideEOL = VaultEOL.None,
+                            //remove working copy does not work -- bug http://support.sourcegear.com/viewtopic.php?f=5&t=11145
+                            PerformDeletions = PerformDeletionsType.RemoveWorkingCopy,
+                            SetFileTime = SetFileTimeType.Current,
+                            Recursive = true
+                        });
+            }
+            catch
+            {
+                // System.Exception: $/foo/bar/baz has no working folder set.
+                // happens if a directory name changed. 
+                // therefore, if an Exception happened try to get the commit outside of the working folder.
+                GetOperations.ProcessCommandGetVersionToLocationOutsideWorkingFolder(
+                    repoPath,
+                    Convert.ToInt32(version),
+                    new GetOptions()
+                        {
+                            MakeWritable = MakeWritableType.MakeAllFilesWritable,
+                            Merge = MergeType.OverwriteWorkingCopy,
+                            OverrideEOL = VaultEOL.None,
+                            //remove working copy does not work -- bug http://support.sourcegear.com/viewtopic.php?f=5&t=11145
+                            PerformDeletions = PerformDeletionsType.RemoveWorkingCopy,
+                            SetFileTime = SetFileTimeType.Current,
+                            Recursive = true
+                        },
+                    this.WorkingFolder);
+            }
 
             //now process deletions, moves, and renames (due to vault bug)
             var allowedRequests = new int[]
@@ -403,12 +426,29 @@ namespace Vault2Git.Lib
                 //check if it is within current branch
                 if (item.ItemPath1.StartsWith(repoPath, StringComparison.CurrentCultureIgnoreCase))
                 {
-                    var pathToDelete = Path.Combine(this.WorkingFolder, item.ItemPath1.Substring(repoPath.Length + 1));
+
+                    string pathToDelete = null;
+                    if (!string.IsNullOrEmpty(item.ItemPath1) && item.ItemPath1.Length >= repoPath.Length + 1)
+                    {
+                        pathToDelete = Path.Combine(this.WorkingFolder, item.ItemPath1.Substring(repoPath.Length + 1));
+                    }
                     //Console.WriteLine("delete {0} => {1}", item.ItemPath1, pathToDelete);
-                    if (File.Exists(pathToDelete))
-                        File.Delete(pathToDelete);
-                    if (Directory.Exists(pathToDelete))
-                        Directory.Delete(pathToDelete, true);
+                    if (pathToDelete != null && File.Exists(pathToDelete))
+                    {
+                        try
+                        {
+                            File.Delete(pathToDelete);
+                        }
+                        catch (UnauthorizedAccessException) { /* don't worry about it */ }
+                    }
+                    if (pathToDelete != null && Directory.Exists(pathToDelete))
+                    {
+                        try
+                        {
+                            Directory.Delete(pathToDelete, true);
+                        }
+                        catch (UnauthorizedAccessException) { /* don't worry about it */ }
+                    }
                 }
             return Environment.TickCount - ticks;
         }
