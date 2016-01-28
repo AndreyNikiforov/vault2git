@@ -15,6 +15,38 @@ using System.Threading;
 
 namespace Vault2Git.Lib
 {
+    public static class Statics
+    {
+       public static String Replace(this String str, string oldValue, string newValue, StringComparison comparision)
+       {
+          StringBuilder sb = new StringBuilder();
+
+          int previousIndex = 0;
+          int index = str.IndexOf(oldValue, comparision);
+          while (index != -1)
+          {
+             sb.Append(str.Substring(previousIndex, index - previousIndex));
+             sb.Append(newValue);
+             index += oldValue.Length;
+
+             previousIndex = index;
+             index = str.IndexOf(oldValue, index, comparision);
+          }
+          sb.Append(str.Substring(previousIndex));
+
+          return sb.ToString();
+       }
+
+       public static void CreateDirectory(DirectoryInfo directory)
+       {
+          if (!directory.Parent.Exists)
+          {
+             CreateDirectory(directory.Parent);
+          }
+          directory.Create();
+       }
+    }
+
     public class Processor
     {
         /// <summary>
@@ -26,6 +58,8 @@ namespace Vault2Git.Lib
         /// path where conversion will take place. If it not already set as value working folder, it will be set automatically
         /// </summary>
         public string WorkingFolder;
+
+        public string OriginalWorkingFolder = null;
 
         public string VaultServer;
         public string VaultUser;
@@ -53,6 +87,8 @@ namespace Vault2Git.Lib
         private const string _gitCheckoutCmd = "checkout --quiet --force {0}";
         private const string _gitBranchCmd = "branch";
         private const string _gitAddTagCmd = @"tag {0} {1} -a -m ""{2}""";
+        private const string _gitResetCmd = "reset --hard";
+        private const string _gitCleanCmd = "clean -f -x";
 
         //private vars
         /// <summary>
@@ -92,11 +128,12 @@ namespace Vault2Git.Lib
         public bool Pull(IEnumerable<KeyValuePair<string,string>> git2vaultRepoPath, long limitCount)
         {
             int ticks = 0;
-            //get git current branch
+
+            //get git current branch name
             string gitCurrentBranch;
             ticks += this.gitCurrentBranch(out gitCurrentBranch);
             
-            //reorder target branches to start from current (to avoid checkouts)
+            //reorder target branches to start from current branch, so don't need to do checkout for first branch
             var targetList =
                 git2vaultRepoPath.OrderByDescending(p => p.Key.Equals(gitCurrentBranch, StringComparison.CurrentCultureIgnoreCase));
 
@@ -136,35 +173,137 @@ namespace Vault2Git.Lib
                     var counter = 0;
                     foreach (var version in versionsToProcess)
                     {
-                        //get vault version
-                        ticks = vaultGet(vaultRepoPath, version.Key, version.Value.TrxId);
-                        //change all sln files
-                        Directory.GetFiles(
-                            WorkingFolder,
-                            "*.sln",
-                            SearchOption.AllDirectories)
-                            //remove temp files created by vault
-                            .Where(f => !f.Contains("~"))
-                            .ToList()
-                            .ForEach(f => ticks += removeSCCFromSln(f));
-                        //change all csproj files
-                        Directory.GetFiles(
-                            WorkingFolder,
-                            "*.csproj",
-                            SearchOption.AllDirectories)
-                            //remove temp files created by vault
-                            .Where(f => !f.Contains("~"))
-                            .ToList()
-                            .ForEach(f => ticks += removeSCCFromCSProj(f));
-                        //change all vdproj files
-                        Directory.GetFiles(
-                            WorkingFolder,
-                            "*.vdproj",
-                            SearchOption.AllDirectories)
-                            //remove temp files created by vault
-                            .Where(f => !f.Contains("~"))
-                            .ToList()
-                            .ForEach(f => ticks += removeSCCFromVDProj(f));
+                        ticks = Environment.TickCount;
+
+                        // Obtain just the ChangeSet for this Version of the repo
+                        TxInfo txnInfo = null;
+                        try
+                        {
+                           // Get a list of the changed files
+                           txnInfo = ServerOperations.ProcessCommandTxDetail(version.Value.TrxId);
+                           foreach (VaultTxDetailHistoryItem txdetailitem in txnInfo.items)
+                           {
+                              // Do deletions, renames and moves ourselves
+                              if (txdetailitem.RequestType == VaultRequestType.Delete)
+                              {
+                                 // Convert the Vault path to a file system path
+                                 String   ItemPath1 = String.Copy( txdetailitem.ItemPath1 );
+
+                                 // Ensure the file is within the folder we are working with. 
+                                 if (ItemPath1.StartsWith(vaultRepoPath, true, System.Globalization.CultureInfo.CurrentCulture))
+                                 {
+                                    ItemPath1 = ItemPath1.Replace(vaultRepoPath, WorkingFolder, StringComparison.CurrentCultureIgnoreCase);
+                                    ItemPath1 = ItemPath1.Replace('/', '\\');
+
+                                    if (File.Exists(ItemPath1))
+                                    {
+                                       File.Delete(ItemPath1);
+                                    }
+
+                                    if (Directory.Exists(ItemPath1))
+                                    {
+                                       Directory.Delete(ItemPath1, true);
+                                    }
+                                 }
+                                 continue;
+                              }
+                              else if (txdetailitem.RequestType == VaultRequestType.Move ||
+                                       txdetailitem.RequestType == VaultRequestType.Rename)
+                              {
+                                 ProcessFileItem(vaultRepoPath, WorkingFolder, txdetailitem, true);
+                                 continue;
+                              }
+                              else if (txdetailitem.RequestType == VaultRequestType.Share)
+                              {
+                                 ProcessFileItem(vaultRepoPath, WorkingFolder, txdetailitem, false);
+                                 continue;
+                              }
+                              else if (txdetailitem.RequestType == VaultRequestType.AddFolder)
+                              {
+                                 // Git doesn't add empty folders
+                                 continue;
+                              }
+
+                              // Apply the changes from vault of the correct version for this file 
+
+                              vaultGetFile( vaultRepoPath, txdetailitem );
+
+                              if (File.Exists(vaultRepoPath))
+                              {
+                                 //
+                                 // Remove Source Code Control
+                                 //
+
+                                 //change all sln files
+                                 if (txdetailitem.ItemPath1.EndsWith("sln", true, System.Globalization.CultureInfo.CurrentCulture))
+                                 {
+                                    removeSCCFromSln(txdetailitem.ItemPath1);
+                                 }
+
+                                 //change all csproj files
+                                 if (txdetailitem.ItemPath1.EndsWith("csproj", true, System.Globalization.CultureInfo.CurrentCulture))
+                                 {
+                                    removeSCCFromCSProj(txdetailitem.ItemPath1);
+                                 }
+
+                                 //change all vdproj files
+                                 if (txdetailitem.ItemPath1.EndsWith("vdproj", true, System.Globalization.CultureInfo.CurrentCulture))
+                                 {
+                                    removeSCCFromVDProj(txdetailitem.ItemPath1);
+                                 }
+                              }
+                           }
+                        }
+                        catch (Exception e)
+                        {
+                           // If an exception is thrown, presume its because a file has been requested which no longer exists in the tip of the repository.
+                           // That is, the file has been moved, renamed or deleted.
+                           // It may be accurate to search the txn details in above loop for request types of moved, renamed or deleted and
+                           // if one is found, execute this code rather than waiting for the exception. Just not sure that it will find everything. But
+                           // I know this code works, though it is much slower for repositories with a large number of files in each Version. Also, all the 
+                           // files that have been retrieved from the Server will still be in the client-side cache so the GetFile above is not wasted.
+                           // If we did not need this code then we would not need to use the Working Directory which would be a cleaner solution.
+                           try
+                           {
+                              vaultGetFolder(vaultRepoPath, version.Key, version.Value.TrxId);
+
+                              //change all sln files
+                              Directory.GetFiles(
+                                  WorkingFolder,
+                                  "*.sln",
+                                  SearchOption.AllDirectories)
+                                 //remove temp files created by vault
+                                  .Where(f => !f.Contains("~"))
+                                  .ToList()
+                                  .ForEach(f => ticks += removeSCCFromSln(f));
+                              //change all csproj files
+                              Directory.GetFiles(
+                                  WorkingFolder,
+                                  "*.csproj",
+                                  SearchOption.AllDirectories)
+                                 //remove temp files created by vault
+                                  .Where(f => !f.Contains("~"))
+                                  .ToList()
+                                  .ForEach(f => ticks += removeSCCFromCSProj(f));
+                              //change all vdproj files
+                              Directory.GetFiles(
+                                  WorkingFolder,
+                                  "*.vdproj",
+                                  SearchOption.AllDirectories)
+                                 //remove temp files created by vault
+                                  .Where(f => !f.Contains("~"))
+                                  .ToList()
+                                  .ForEach(f => ticks += removeSCCFromVDProj(f));
+                           }
+                           catch (System.Exception)
+                           {
+                              string errorStr = "Could not get txn details.  Got exception: " + e.Message;
+                              throw new Exception("Cannot get transaction details for " + version.Value.TrxId);
+                           }
+                        }
+
+                        ticks = Environment.TickCount - ticks;
+
                         //get vault version info
                         var info = vaultVersions[version.Key];
                         //commit
@@ -186,7 +325,11 @@ namespace Vault2Git.Lib
                         if (counter >= limitCount)
                             break;
                     }
-                    ticks = vaultFinalize(vaultRepoPath);
+
+                    if (versionsToProcess.Count() > 0)
+                    {
+                       ticks = vaultFinalize(vaultRepoPath);
+                    }
                 }
             }
             finally
@@ -329,15 +472,15 @@ namespace Vault2Git.Lib
             VaultLabelItemX[] labelItems;
 
             ServerOperations.client.ClientInstance.BeginLabelQuery(repositoryFolderPath,
-                                                                       objId,
-                                                                       true, // get recursive
-                                                                       true, // get inherited
-                                                                       true, // get file items
-                                                                       true, // get folder items
-                                                                       0,    // no limit on results
-                                                                       out rowsRetMain,
-                                                                       out rowsRetRecur,
-                                                                       out qryToken);
+                                                                                   objId,
+                                                                                   true, // get recursive
+                                                                                   true, // get inherited
+                                                                                   true, // get file items
+                                                                                   true, // get folder items
+                                                                                   0, // no limit on results
+                                                                                   out rowsRetMain,
+                                                                                   out rowsRetRecur,
+                                                                                   out qryToken);
 
 
             ServerOperations.client.ClientInstance.GetLabelQueryItems_Recursive(qryToken,
@@ -349,103 +492,255 @@ namespace Vault2Git.Lib
 
             try
             {
-                foreach (VaultLabelItemX currItem in labelItems)
-                {
-                    if (!_txidMappings.ContainsKey(currItem.TxID))
+               if (labelItems != null)
+               {
+                  foreach (VaultLabelItemX currItem in labelItems)
+                  {
+                     if (!_txidMappings.ContainsKey(currItem.TxID))
                         continue;
 
-                    string gitCommitId = _txidMappings.Where(s => s.Key.Equals(currItem.TxID)).First().Value;
+                     string gitCommitId = _txidMappings.Where(s => s.Key.Equals(currItem.TxID)).First().Value;
 
-                    if (gitCommitId != null && gitCommitId.Length > 0)
-                    {
+                     if (gitCommitId != null && gitCommitId.Length > 0)
+                     {
                         string gitLabelName = Regex.Replace(currItem.Label, "[\\W]", "_");
                         ticks += gitAddTag(currItem.TxID + "_" + gitLabelName, gitCommitId, currItem.Comment);
-                    }
-                }
-                
-                //add ticks for git tags
-                if (null != Progress)
-                    Progress(ProgressSpecialVersionTags, ticks);
+                     }
+                  }
+               }
+
+               //add ticks for git tags
+               if (null != Progress)
+                  Progress(ProgressSpecialVersionTags, ticks);
             }
             finally
             {
-                //complete
-                ServerOperations.client.ClientInstance.EndLabelQuery(qryToken);
-                vaultLogout();
-                gitFinalize();
+               //complete
+               ServerOperations.client.ClientInstance.EndLabelQuery(qryToken);
+               vaultLogout();
+               gitFinalize();
             }
             return true;
         }
 
-        private int vaultGet(string repoPath, long version, long txId)
+        private void vaultGetFolder(string repoPath, long version, long txId)
         {
-            var ticks = Environment.TickCount;
+           try
+           {
+              //apply version to the repo folder
+              vaultProcessCommandGetVersion(repoPath, version, true);
+           }
+           catch (Exception e)
+           {
+              Console.WriteLine("Exception " + e.Message + " getting Version " + version + " from Vault repo. Waiting 5 secs and retrying...");
 
-            try
-            {
-               //apply version to the repo folder
-               GetOperations.ProcessCommandGetVersion(
-                   repoPath,
-                   Convert.ToInt32(version),
-                   new GetOptions()
-                       {
-                           MakeWritable = MakeWritableType.MakeAllFilesWritable,
-                           Merge = MergeType.OverwriteWorkingCopy,
-                           OverrideEOL = VaultEOL.None,
-                           //remove working copy does not work -- bug http://support.sourcegear.com/viewtopic.php?f=5&t=11145
-                           PerformDeletions = PerformDeletionsType.RemoveWorkingCopy,
-                           SetFileTime = SetFileTimeType.Modification,
-                           Recursive = true
-                       });
-            }
-            catch (Exception)
-            {
-               Console.WriteLine("Exception getting Version from Vault repo. Waiting 5 secs and retrying...");
+              // if an error occurs, wait and then retry the operation. We may be running too fast for Vault
+              System.Threading.Thread.Sleep(TimeSpan.FromSeconds(5.0));
 
-               // if an error occurs, wait and then retry the operation. We may be running too fast for Vault
-               System.Threading.Thread.Sleep( TimeSpan.FromSeconds(5.0) );
+              vaultProcessCommandGetVersion(repoPath, version, true);
+           }
 
-               GetOperations.ProcessCommandGetVersion(
-                   repoPath,
-                   Convert.ToInt32(version),
-                   new GetOptions()
-                   {
-                      MakeWritable = MakeWritableType.MakeAllFilesWritable,
-                      Merge = MergeType.OverwriteWorkingCopy,
-                      OverrideEOL = VaultEOL.None,
-                      //remove working copy does not work -- bug http://support.sourcegear.com/viewtopic.php?f=5&t=11145
-                      PerformDeletions = PerformDeletionsType.RemoveWorkingCopy,
-                      SetFileTime = SetFileTimeType.Modification,
-                      Recursive = true
-                   });
-            }
-
-            //now process deletions, moves, and renames (due to vault bug)
-            var allowedRequests = new int[]
+           //now process deletions, moves, and renames (due to vault bug)
+           var allowedRequests = new int[]
                                       {
-                                          9, //delete
-                                          12, //move
-                                          15 //rename
+                                          VaultRequestType.Delete,
+                                          VaultRequestType.Move, 
+                                          VaultRequestType.Rename
                                       };
-            foreach (var item in ServerOperations.ProcessCommandTxDetail(txId).items
-                .Where(i => allowedRequests.Contains(i.RequestType)))
+           foreach (var item in ServerOperations.ProcessCommandTxDetail(txId).items
+               .Where(i => allowedRequests.Contains(i.RequestType)))
+           {
+              //delete file
+              //check if it is within current branch
+              if (item.ItemPath1.StartsWith(repoPath, StringComparison.CurrentCultureIgnoreCase))
+              {
+                 var pathToDelete = Path.Combine(this.WorkingFolder, item.ItemPath1.Substring(repoPath.Length + 1));
+                 //Console.WriteLine("delete {0} => {1}", item.ItemPath1, pathToDelete);
+                 if (File.Exists(pathToDelete))
+                    File.Delete(pathToDelete);
+                 if (Directory.Exists(pathToDelete))
+                 {
+                    Directory.Delete(pathToDelete, true);
+                    // Ensure its really deleted so iteration of directories by caller does not cause dir not exist exception
+                    Thread.Sleep(500);
+                 }
+              }
+           }
+        }
 
-                //delete file
-                //check if it is within current branch
-                if (item.ItemPath1.StartsWith(repoPath, StringComparison.CurrentCultureIgnoreCase))
-                {
-                    var pathToDelete = Path.Combine(this.WorkingFolder, item.ItemPath1.Substring(repoPath.Length + 1));
-                    //Console.WriteLine("delete {0} => {1}", item.ItemPath1, pathToDelete);
-                    if (File.Exists(pathToDelete))
-                        File.Delete(pathToDelete);
-                    if (Directory.Exists(pathToDelete))
-                    {
-                       Directory.Delete(pathToDelete, true);
-                       // Ensure its really deleted so iteration of directories by caller does not cause dir not exist exception
-                       Thread.Sleep(500);
-                    }
-                }
-            return Environment.TickCount - ticks;
+        private void vaultGetFile(string repoPath, VaultTxDetailHistoryItem txdetailitem)
+        {
+           // Allow exception to percolate up. Presume its due to a file missing from the latest Version 
+           // thats in this Version. That is, this file is later deleted, moved or renamed.
+
+           //apply version to the repo folder
+           vaultProcessCommandGetVersion( txdetailitem.ItemPath1, txdetailitem.Version, false );
+
+           //now process deletions, moves, and renames (due to vault bug)
+           var allowedRequests = new int[]
+                                      {
+                                          VaultRequestType.Delete,
+                                          VaultRequestType.Move, 
+                                          VaultRequestType.Rename
+                                      };
+           if (allowedRequests.Contains(txdetailitem.RequestType))
+           {
+              //delete file
+              //check if it is within current branch
+              if (txdetailitem.ItemPath1.StartsWith(repoPath, StringComparison.CurrentCultureIgnoreCase))
+              {
+                 var pathToDelete = Path.Combine(this.WorkingFolder, txdetailitem.ItemPath1.Substring(repoPath.Length + 1));
+                 //Console.WriteLine("delete {0} => {1}", item.ItemPath1, pathToDelete);
+                 if (File.Exists(pathToDelete))
+                    File.Delete(pathToDelete);
+                 if (Directory.Exists(pathToDelete))
+                 {
+                    Directory.Delete(pathToDelete, true);
+                    // Ensure its really deleted so iteration of directories by caller does not cause dir not exist exception
+                    Thread.Sleep(500);
+                 }
+              }
+           }
+        }
+
+        private void vaultProcessCommandGetVersion(string repoPath, long version, bool recursive)
+        {
+           //apply version to the repo folder
+           GetOperations.ProcessCommandGetVersion(
+               repoPath,
+               Convert.ToInt32(version),
+               new GetOptions()
+               {
+                  MakeWritable = MakeWritableType.MakeAllFilesWritable,
+                  Merge = MergeType.OverwriteWorkingCopy,
+                  OverrideEOL = VaultEOL.None,
+                  //remove working copy does not work -- bug http://support.sourcegear.com/viewtopic.php?f=5&t=11145
+                  PerformDeletions = PerformDeletionsType.RemoveWorkingCopy,
+                  SetFileTime = SetFileTimeType.Modification,
+                  Recursive = recursive
+               });
+        }
+
+        public static void ProcessFileItem( String vaultRepoPath, String workingFolder, VaultTxDetailHistoryItem txdetailitem, bool moveFiles )
+        {
+            // Convert the Vault path to a file system path
+            String ItemPath1 = String.Copy(txdetailitem.ItemPath1);
+            String ItemPath2 = String.Copy(txdetailitem.ItemPath2);
+
+            // Ensure the files are withing the folder we are working with. 
+            // If the source path is outside the current branch, throw an exception and let vault handle the processing because
+            // we do not have the correct state of files outside the current branch.
+            // If the target path is outside, ignore a file copy and delete a file move.
+            // E.g. A Share can be shared outside of the branch we are working with
+            bool ItemPath1WithinCurrentBranch = ItemPath1.StartsWith(vaultRepoPath, true, System.Globalization.CultureInfo.CurrentCulture);
+            bool ItemPath2WithinCurrentBranch = ItemPath2.StartsWith(vaultRepoPath, true, System.Globalization.CultureInfo.CurrentCulture);
+
+            if (!ItemPath1WithinCurrentBranch)
+            {
+               throw new FileNotFoundException(
+                  "Source file is outside the current branch: "
+                  + ItemPath1);
+            }
+
+            // Don't copy files outside of the branch
+            if (!moveFiles && !ItemPath2WithinCurrentBranch)
+            {
+               return;
+            }
+
+            ItemPath1 = ItemPath1.Replace(vaultRepoPath, workingFolder, StringComparison.CurrentCultureIgnoreCase);
+            ItemPath1 = ItemPath1.Replace('/', '\\');
+
+            ItemPath2 = ItemPath2.Replace(vaultRepoPath, workingFolder, StringComparison.CurrentCultureIgnoreCase);
+            ItemPath2 = ItemPath2.Replace('/', '\\');
+
+            if (File.Exists(ItemPath1))
+            {
+               string directory2 = Path.GetDirectoryName(ItemPath2);
+               if (!Directory.Exists(directory2))
+               {
+                  Directory.CreateDirectory(directory2);
+               }
+
+               if (ItemPath2WithinCurrentBranch && File.Exists(ItemPath2))
+               {
+                  File.Delete(ItemPath2);
+               }
+
+               if (moveFiles)
+               {
+                  // If target is outside of current branch, just delete the source file
+                  if (!ItemPath2WithinCurrentBranch)
+                  {
+                     File.Delete(ItemPath1);
+                  }
+                  else
+                  {
+                     File.Move(ItemPath1, ItemPath2);
+                  }
+               }
+               else
+               {
+                  File.Copy(ItemPath1, ItemPath2);
+               }
+            }
+            else if (Directory.Exists(ItemPath1))
+            {
+               if (moveFiles)
+               {
+                  // If target is outside of current branch, just delete the source directory
+                  if (!ItemPath2WithinCurrentBranch)
+                  {
+                     Directory.Delete(ItemPath1);
+                  }
+                  else
+                  {
+                     Directory.Move(ItemPath1, ItemPath2);
+                  }
+               }
+               else
+               {
+                  DirectoryCopy(ItemPath1, ItemPath2, true);
+               }
+            }
+        }
+
+        private static void DirectoryCopy(string sourceDirName, string destDirName, bool copySubDirs)
+        {
+           // Get the subdirectories for the specified directory.
+           DirectoryInfo dir = new DirectoryInfo(sourceDirName);
+           DirectoryInfo[] dirs = dir.GetDirectories();
+
+           if (!dir.Exists)
+           {
+              throw new DirectoryNotFoundException(
+                  "Source directory does not exist or could not be found: "
+                  + sourceDirName);
+           }
+
+           // If the destination directory doesn't exist, create it. 
+           if (!Directory.Exists(destDirName))
+           {
+              Directory.CreateDirectory(destDirName);
+           }
+
+           // Get the files in the directory and copy them to the new location.
+           FileInfo[] files = dir.GetFiles();
+           foreach (FileInfo file in files)
+           {
+              string temppath = Path.Combine(destDirName, file.Name);
+              file.CopyTo(temppath, false);
+           }
+
+           // If copying subdirectories, copy them and their contents to new location. 
+           if (copySubDirs)
+           {
+              foreach (DirectoryInfo subdir in dirs)
+              {
+                 string temppath = Path.Combine(destDirName, subdir.Name);
+                 DirectoryCopy(subdir.FullName, temppath, copySubDirs);
+              }
+           }
         }
 
         struct VaultVersionInfo
@@ -578,6 +873,18 @@ namespace Vault2Git.Lib
                 out msg);
         }
 
+        private int gitReset()
+        {
+           string[] msg;
+           return runGitCommand(_gitResetCmd, string.Empty, out msg);
+        }
+
+        private int gitClean()
+        {
+           string[] msg;
+           return runGitCommand(_gitCleanCmd, string.Empty, out msg);
+        }
+
         private int gitGC()
         {
             string[] msg;
@@ -593,6 +900,18 @@ namespace Vault2Git.Lib
         private int setVaultWorkingFolder(string repoPath)
         {
             var ticks = Environment.TickCount;
+
+            // Save the current working folder
+            SortedList list = ServerOperations.GetWorkingFolderAssignments();
+            foreach (DictionaryEntry dict in list)
+            {
+               if (dict.Key.ToString().Equals(repoPath, StringComparison.OrdinalIgnoreCase))
+               {
+                  OriginalWorkingFolder = dict.Value.ToString();
+                  break;
+               }
+            }
+
             ServerOperations.SetWorkingFolder(repoPath, this.WorkingFolder, true);
             return Environment.TickCount - ticks;
         }
@@ -600,14 +919,21 @@ namespace Vault2Git.Lib
         private int unSetVaultWorkingFolder(string repoPath)
         {
             var ticks = Environment.TickCount;
+
             //remove any assignment first
             //it is case sensitive, so we have to find how it is recorded first
             var exPath = ServerOperations.GetWorkingFolderAssignments()
-                .Cast<DictionaryEntry>()
-                .Select(e => e.Key.ToString())
-                .Where(e => repoPath.Equals(e, StringComparison.OrdinalIgnoreCase)).FirstOrDefault();
+                  .Cast<DictionaryEntry>()
+                  .Select(e => e.Key.ToString())
+                  .Where(e => repoPath.Equals(e, StringComparison.OrdinalIgnoreCase)).FirstOrDefault();
             if (null != exPath)
-                ServerOperations.RemoveWorkingFolder(exPath);
+               ServerOperations.RemoveWorkingFolder(exPath);
+
+            if (OriginalWorkingFolder != null)
+            {
+               ServerOperations.SetWorkingFolder(repoPath, OriginalWorkingFolder, true);
+               OriginalWorkingFolder = null;
+            }
             return Environment.TickCount - ticks;
         }
         private int runGitCommand(string cmd, string stdInput, out string[] stdOutput)
