@@ -257,9 +257,22 @@ namespace Vault2Git.Lib
                                  continue;
                               }
 
-                              // Apply the changes from vault of the correct version for this file 
+                              // Shared file changes may be checked in as a file that's in a different vault tree,
+                              // so throw an exception to cause whole tree to be refreshed.
 
-                              vaultGetFile( vaultRepoPath, txdetailitem );
+                              if (txdetailitem.ItemPath1.StartsWith(vaultRepoPath, true, System.Globalization.CultureInfo.CurrentCulture))
+                              {
+                                 // Apply the changes from vault of the correct version for this file 
+                                 vaultGetFile(vaultRepoPath, txdetailitem);
+                              }
+                              else
+                              {
+                                 if (Verbose) Console.WriteLine("{0} is outside current branch; getting whole folder}", txdetailitem.ItemPath1);
+
+                                 throw new FileNotFoundException(
+                                    "Source file is outside the current branch: "
+                                    + txdetailitem.ItemPath1);
+                              }
 
                               if (File.Exists(vaultRepoPath))
                               {
