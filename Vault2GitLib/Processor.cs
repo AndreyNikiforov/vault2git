@@ -652,7 +652,12 @@ namespace Vault2Git.Lib
         private void vaultProcessCommandGetVersion(string repoPath, long version, bool recursive)
         {
            // Must delete everything first otherwise deleted files are not deleted.
-           if ( recursive ) Statics.DeleteWorkingDirectory( WorkingFolder );
+           if (recursive)
+           {
+              if ( Verbose) Console.WriteLine("Getting entire vault path " + repoPath );
+              Statics.DeleteWorkingDirectory(WorkingFolder);
+              Thread.Sleep(500); // Allow file system to apply directory changes
+           }
 
            //apply version to the repo folder
 
