@@ -1022,7 +1022,16 @@ namespace Vault2Git.Lib
                }
             }
 
-            ServerOperations.SetWorkingFolder(repoPath, this.WorkingFolder, true);
+            try
+            {
+               ServerOperations.SetWorkingFolder(repoPath, this.WorkingFolder, true );
+            }
+            catch (VaultClientOperationsLib.WorkingFolderConflictException ex)
+            {
+               // Remove the working folder assignment and try again
+               ServerOperations.RemoveWorkingFolder((string)ex.ConflictList[0]);
+               ServerOperations.SetWorkingFolder(repoPath, this.WorkingFolder, true );
+            }
             return Environment.TickCount - ticks;
         }
 
