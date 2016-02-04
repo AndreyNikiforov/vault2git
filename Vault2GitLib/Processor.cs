@@ -105,6 +105,8 @@ namespace Vault2Git.Lib
 
         //flags
         public bool SkipEmptyCommits = false;
+        public bool Verbose = false;
+        public bool Pause = false;
 
         //git commands
         private const string _gitVersionCmd = "version";
@@ -112,7 +114,7 @@ namespace Vault2Git.Lib
         private const string _gitFinalizer = "update-server-info";
         private const string _gitAddCmd = "add --all .";
         private const string _gitStatusCmd = "status --porcelain";
-        private const string _gitLastCommitInfoCmd = "log -1 {0}";
+        private const string _gitLastCommitInfoCmd = "show -s HEAD~{0}";
         private const string _gitCommitCmd = @"commit --allow-empty --all --date=""{2}"" --author=""{0} <{0}@{1}>"" -F -";
         private const string _gitCheckoutCmd = "checkout --quiet --force {0}";
         private const string _gitBranchCmd = "branch";
@@ -154,8 +156,9 @@ namespace Vault2Git.Lib
         /// </summary>
         /// <param name="git2vaultRepoPath">Key=git, Value=vault</param>
         /// <param name="limitCount"></param>
+        /// <param name="restartLimitCount"></param>
         /// <returns></returns>
-        public bool Pull(IEnumerable<KeyValuePair<string,string>> git2vaultRepoPath, long limitCount)
+        public bool Pull(IEnumerable<KeyValuePair<string, string>> git2vaultRepoPath, long limitCount, long restartLimitCount)
         {
             int ticks = 0;
 
@@ -182,7 +185,7 @@ namespace Vault2Git.Lib
                     ticks = 0;
 
                     //get current version
-                    ticks += gitVaultVersion(gitBranch, ref currentGitVaultVersion);
+                    ticks += gitVaultVersion(gitBranch, restartLimitCount, ref currentGitVaultVersion);
 
                     //get vaultVersions
                     IDictionary<long, VaultVersionInfo> vaultVersions = new SortedList<long, VaultVersionInfo>();
@@ -336,6 +339,14 @@ namespace Vault2Git.Lib
 
                         //get vault version info
                         var info = vaultVersions[version.Key];
+
+                        if (Pause)
+                        {
+                           Console.WriteLine("Pause before commit. Enter to continue.");
+                           Console.ReadLine();
+                        }
+
+
                         //commit
                         ticks += gitCommit(info.Login, info.TrxId, this.GitDomainName,
                                            buildCommitMessage(vaultRepoPath, version.Key, info), info.TimeStamp);
@@ -366,10 +377,11 @@ namespace Vault2Git.Lib
             {
                 //complete
                 ticks += vaultLogout();
+
                 //finalize git (update server info for dumb clients)
                 ticks += gitFinalize();
                 if (null != Progress)
-                    Progress(ProgressSpecialVersionFinalize, ticks);
+                   Progress(ProgressSpecialVersionFinalize, ticks);
             }
             return false;
         }
@@ -585,7 +597,7 @@ namespace Vault2Git.Lib
               if (item.ItemPath1.StartsWith(repoPath, StringComparison.CurrentCultureIgnoreCase))
               {
                  var pathToDelete = Path.Combine(this.WorkingFolder, item.ItemPath1.Substring(repoPath.Length + 1));
-                 //Console.WriteLine("delete {0} => {1}", item.ItemPath1, pathToDelete);
+                 if (Verbose) Console.WriteLine("delete {0} => {1}", item.ItemPath1, pathToDelete);
                  if (File.Exists(pathToDelete))
                     File.Delete(pathToDelete);
                  if (Directory.Exists(pathToDelete))
@@ -604,7 +616,9 @@ namespace Vault2Git.Lib
            // thats in this Version. That is, this file is later deleted, moved or renamed.
 
            //apply version to the repo folder
-           vaultProcessCommandGetVersion( txdetailitem.ItemPath1, txdetailitem.Version, false );
+           if (Verbose) Console.WriteLine("get {0} version {1}", txdetailitem.ItemPath1, txdetailitem.Version);
+           vaultProcessCommandGetVersion(txdetailitem.ItemPath1, txdetailitem.Version, false);
+           if (Verbose) Console.WriteLine("get {0} version {1} SUCCESS!", txdetailitem.ItemPath1, txdetailitem.Version);
 
            //now process deletions, moves, and renames (due to vault bug)
            var allowedRequests = new int[]
@@ -620,7 +634,9 @@ namespace Vault2Git.Lib
               if (txdetailitem.ItemPath1.StartsWith(repoPath, StringComparison.CurrentCultureIgnoreCase))
               {
                  var pathToDelete = Path.Combine(this.WorkingFolder, txdetailitem.ItemPath1.Substring(repoPath.Length + 1));
-                 //Console.WriteLine("delete {0} => {1}", item.ItemPath1, pathToDelete);
+
+                 if (Verbose) Console.WriteLine("delete {0} => {1}", txdetailitem.ItemPath1, pathToDelete);
+
                  if (File.Exists(pathToDelete))
                     File.Delete(pathToDelete);
                  if (Directory.Exists(pathToDelete))
@@ -655,7 +671,7 @@ namespace Vault2Git.Lib
                });
         }
 
-        public static void ProcessFileItem( String vaultRepoPath, String workingFolder, VaultTxDetailHistoryItem txdetailitem, bool moveFiles )
+        public void ProcessFileItem( String vaultRepoPath, String workingFolder, VaultTxDetailHistoryItem txdetailitem, bool moveFiles )
         {
             // Convert the Vault path to a file system path
             String ItemPath1 = String.Copy(txdetailitem.ItemPath1);
@@ -666,11 +682,13 @@ namespace Vault2Git.Lib
             // we do not have the correct state of files outside the current branch.
             // If the target path is outside, ignore a file copy and delete a file move.
             // E.g. A Share can be shared outside of the branch we are working with
+            if (Verbose) Console.WriteLine("Processing {0} to {1}. MoveFiles = {2})", ItemPath1, ItemPath2, moveFiles);
             bool ItemPath1WithinCurrentBranch = ItemPath1.StartsWith(vaultRepoPath, true, System.Globalization.CultureInfo.CurrentCulture);
             bool ItemPath2WithinCurrentBranch = ItemPath2.StartsWith(vaultRepoPath, true, System.Globalization.CultureInfo.CurrentCulture);
 
             if (!ItemPath1WithinCurrentBranch)
             {
+               if (Verbose) Console.WriteLine("   Source file is outside of working folder. Error");
                throw new FileNotFoundException(
                   "Source file is outside the current branch: "
                   + ItemPath1);
@@ -679,6 +697,7 @@ namespace Vault2Git.Lib
             // Don't copy files outside of the branch
             if (!moveFiles && !ItemPath2WithinCurrentBranch)
             {
+               if (Verbose) Console.WriteLine("   Ignoring target file outside of working folder");
                return;
             }
 
@@ -698,6 +717,7 @@ namespace Vault2Git.Lib
 
                if (ItemPath2WithinCurrentBranch && File.Exists(ItemPath2))
                {
+                  if (Verbose) Console.WriteLine("   Deleting {0}", ItemPath2 );
                   File.Delete(ItemPath2);
                }
 
@@ -706,15 +726,18 @@ namespace Vault2Git.Lib
                   // If target is outside of current branch, just delete the source file
                   if (!ItemPath2WithinCurrentBranch)
                   {
+                     if (Verbose) Console.WriteLine("   Deleting {0}", ItemPath1);
                      File.Delete(ItemPath1);
                   }
                   else
                   {
+                     if (Verbose) Console.WriteLine("   Moving {0}", ItemPath2);
                      File.Move(ItemPath1, ItemPath2);
                   }
                }
                else
                {
+                  if (Verbose) Console.WriteLine("   Copying {0} to [1]", ItemPath1, ItemPath2);
                   File.Copy(ItemPath1, ItemPath2);
                }
             }
@@ -785,14 +808,44 @@ namespace Vault2Git.Lib
             public DateTime TimeStamp;
         }
 
-        private int gitVaultVersion(string gitBranch, ref long currentVersion)
+        private int gitVaultVersion(string gitBranch, long restartLimitCount, ref long currentVersion)
         {
             string[] msgs;
-            //get info
-            var ticks = gitLog(gitBranch, out msgs);
-            //get vault version
-            currentVersion = getVaultVersionFromGitLogMessage(msgs);
-            return ticks;
+            var ticks = 0;
+            currentVersion = 0;
+            int revision = 0;
+            try
+            {
+               while (currentVersion == 0 && revision < restartLimitCount)
+               {
+                  //get commit message
+                  ticks += gitLog(revision, out msgs);
+                  //get vault version from commit message
+                  currentVersion = getVaultVersionFromGitLogMessage(msgs);
+                  revision++;
+               }
+
+               if (currentVersion == 0)
+               {
+                  Console.WriteLine("Restart limit exceeded. Conversion will start from Version 1. Is this correct? Y/N");
+                  string input = Console.ReadLine();
+                  if (!(input[0] == 'Y' || input[0] == 'y'))
+                  {
+                     throw new Exception("Restart commit message not located in git within {0} commits of HEAD " + restartLimitCount);
+                  }
+               }
+            }
+            catch (System.InvalidOperationException)
+            {
+               Console.WriteLine("Searched all commits and failed to find a restart point. Conversion will start from Version 1. Is this correct? Y/N");
+               string input = Console.ReadLine();
+               if (!(input[0] == 'Y' || input[0] == 'y'))
+               {
+                  throw new Exception("Searched all commits and failed to find a restart point");
+               }
+            }
+
+            return ticks; 
         }
 
         private int Init(string vaultRepoPath, string gitBranch)
@@ -894,9 +947,9 @@ namespace Vault2Git.Lib
             return version;
         }
 
-        private int gitLog(string gitBranch, out string[] msg)
+        private int gitLog(int gitRevision, out string[] msg)
         {
-            return runGitCommand(string.Format(_gitLastCommitInfoCmd, gitBranch), string.Empty, out msg);
+           return runGitCommand(string.Format(_gitLastCommitInfoCmd, gitRevision), string.Empty, out msg);
         }
 
         private int gitAddTag(string gitTagName, string gitCommitId, string gitTagComment)

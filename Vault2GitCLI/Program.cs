@@ -18,10 +18,13 @@ namespace Vault2Git.CLI
         class Params
         {
             public int Limit { get; protected set; }
+            public int RestartLimit { get; protected set; }
             public bool UseConsole { get; protected set; }
             public bool UseCapsLock { get; protected set; }
             public bool SkipEmptyCommits { get; protected set; }
             public bool IgnoreLabels { get; protected set; }
+            public bool Verbose { get; protected set; }
+            public bool Pause { get; protected set; }
             public string Paths { get; protected set; }
             public string Work { get; protected set; }
             public IEnumerable<string> Branches;
@@ -32,6 +35,7 @@ namespace Vault2Git.CLI
             }
 
             private const string _limitParam = "--limit=";
+            private const string _restartLimitParam = "--restart-limit=";
             private const string _branchParam = "--branch=";
             private const string _pathsParam = "--paths=";
             private const string _workParam = "--work=";
@@ -64,16 +68,23 @@ namespace Vault2Git.CLI
                     else if (o.Equals("--skip-empty-commits"))
                         p.SkipEmptyCommits = true;
                     else if (o.Equals("--ignore-labels"))
-                        p.IgnoreLabels = true;
+                       p.IgnoreLabels = true;
+                    else if (o.Equals("--verbose"))
+                       p.Verbose = true;
+                    else if (o.Equals("--pause"))
+                       p.Pause = true;
                     else if (o.Equals("--help"))
                     {
                         errors.Add("Usage: vault2git [options]");
                         errors.Add("options:");
                         errors.Add("   --help                  This screen");
                         errors.Add("   --console-output        Use console output (default=no output)");
+                        errors.Add("   --verbose               Output detailed messages");
+                        errors.Add("   --pause                 Pause just before commit so local state may be checked");
                         errors.Add("   --caps-lock             Use caps lock to stop at the end of the cycle with proper finalizers (default=no caps-lock)");
                         errors.Add("   --branch=<branch>       Process only one branch from config. Branch name should be in git terms. Default=all branches from config");
-                        errors.Add("   --limit=<n>             Max number of versions to take from Vault for each branch");
+                        errors.Add("   --limit=<n>             Max number of versions to take from Vault for each branch. Default all versions");
+                        errors.Add("   --restart-limit=<n>     Max number of commits to search back in git for restart point for each branch. Default 20 commits");
                         errors.Add("   --skip-empty-commits    Do not create empty commits in Git");
                         errors.Add("   --ignore-labels         Do not create Git tags from Vault labels");
                         errors.Add("   --paths=<paths>         paths to override setting in .config");
@@ -88,7 +99,16 @@ namespace Vault2Git.CLI
                            else
                               errors.Add(string.Format("Incorrect limit ({0}). Use integer.", l));
                      }
-                     else if (o.StartsWith(_branchParam))
+                    else if (o.StartsWith(_restartLimitParam))
+                    {
+                       var l = o.Substring(_restartLimitParam.Length);
+                       var max = 0;
+                       if (int.TryParse(l, out max))
+                          p.RestartLimit = max;
+                       else
+                          errors.Add(string.Format("Incorrect restart limit ({0}). Use integer.", l));
+                    }
+                    else if (o.StartsWith(_branchParam))
                      {
                         var b = o.Substring(_branchParam.Length);
                         if (gitBranches.Contains(b))
@@ -190,7 +210,7 @@ namespace Vault2Git.CLI
 
             Console.WriteLine("   use Vault2Git --help to get additional info");
 
-            _useConsole = param.UseConsole;
+           _useConsole = param.UseConsole;
             _useCapsLock = param.UseCapsLock;
             _ignoreLabels = param.IgnoreLabels;
             workingFolder = param.Work;
@@ -198,6 +218,17 @@ namespace Vault2Git.CLI
             if (workingFolder == null)
             {
                workingFolder = appSettings.Settings["Convertor.WorkingFolder"].Value;
+            }
+
+            if (param.Verbose) 
+            {
+               Console.WriteLine("WorkingFolder = {0}", workingFolder );
+               Console.WriteLine("GitCmd = {0}", appSettings.Settings["Convertor.GitCmd"].Value);
+               Console.WriteLine("GitDomainName = {0}", appSettings.Settings["Git.DomainName"].Value);
+               Console.WriteLine("VaultServer = {0}", appSettings.Settings["Vault.Server"].Value);
+               Console.WriteLine("VaultRepository = {0}", appSettings.Settings["Vault.Repo"].Value);
+               Console.WriteLine("VaultUser = {0}", appSettings.Settings["Vault.User"].Value );
+               Console.WriteLine("VaultPassword = {0}\n", appSettings.Settings["Vault.Password"].Value );
             }
 
             var processor = new Vault2Git.Lib.Processor()
@@ -210,7 +241,9 @@ namespace Vault2Git.CLI
                                     VaultUser = appSettings.Settings["Vault.User"].Value,
                                     VaultPassword = appSettings.Settings["Vault.Password"].Value,
                                     Progress = ShowProgress,
-                                    SkipEmptyCommits = param.SkipEmptyCommits
+                                    SkipEmptyCommits = param.SkipEmptyCommits,
+                                    Verbose = param.Verbose,
+                                    Pause = param.Pause
                                 };
 
 
@@ -218,6 +251,7 @@ namespace Vault2Git.CLI
                 (
                     pathPairs.Where(p => param.Branches.Contains(p.Key))
                     , 0 == param.Limit ? 999999999 : param.Limit
+                    , 0 == param.RestartLimit ? 20 : param.RestartLimit
                 );
 
             if (!_ignoreLabels)
