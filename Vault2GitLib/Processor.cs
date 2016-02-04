@@ -45,6 +45,36 @@ namespace Vault2Git.Lib
           }
           directory.Create();
        }
+
+       // Delete all working files and folders in the repo except those added just for git
+       public static void DeleteWorkingDirectory(string targetDirectory) 
+       {
+           // Process the list of files found in the directory.
+           string [] fileEntries = Directory.GetFiles(targetDirectory);
+           foreach (string fileName in fileEntries)
+           {
+              if (!fileName.StartsWith(targetDirectory + "\\.") && fileName != targetDirectory + "\\v2g.bat" && fileName != targetDirectory + "\\Vault2Git.exe.config")
+              {
+                 File.Delete(fileName);
+              }
+           }
+
+           // Delete all subdirectories of this directory, except .git.
+           string [] subdirectoryEntries = Directory.GetDirectories(targetDirectory);
+           foreach (string subdirectory in subdirectoryEntries)
+           {
+              if (!subdirectory.StartsWith(targetDirectory + "\\."))
+              {
+                 Directory.Delete( subdirectory, true );
+              }
+           }
+       }
+
+       // Insert logic for processing found files here.
+       public static void ProcessFile(string path) 
+       {
+           Console.WriteLine("Processed file '{0}'.", path);	    
+       }
     }
 
     public class Processor
@@ -605,7 +635,11 @@ namespace Vault2Git.Lib
 
         private void vaultProcessCommandGetVersion(string repoPath, long version, bool recursive)
         {
+           // Must delete everything first otherwise deleted files are not deleted.
+           if ( recursive ) Statics.DeleteWorkingDirectory( WorkingFolder );
+
            //apply version to the repo folder
+
            GetOperations.ProcessCommandGetVersion(
                repoPath,
                Convert.ToInt32(version),
