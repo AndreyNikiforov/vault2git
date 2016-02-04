@@ -228,7 +228,8 @@ namespace Vault2Git.CLI
                Console.WriteLine("VaultServer = {0}", appSettings.Settings["Vault.Server"].Value);
                Console.WriteLine("VaultRepository = {0}", appSettings.Settings["Vault.Repo"].Value);
                Console.WriteLine("VaultUser = {0}", appSettings.Settings["Vault.User"].Value );
-               Console.WriteLine("VaultPassword = {0}\n", appSettings.Settings["Vault.Password"].Value );
+               Console.WriteLine("VaultPassword = {0}", appSettings.Settings["Vault.Password"].Value);
+               Console.WriteLine("Converterpaths = {0}\n", appSettings.Settings["Convertor.Paths"].Value);
             }
 
             var processor = new Vault2Git.Lib.Processor()

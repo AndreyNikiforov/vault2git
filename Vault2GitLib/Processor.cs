@@ -114,7 +114,7 @@ namespace Vault2Git.Lib
         private const string _gitFinalizer = "update-server-info";
         private const string _gitAddCmd = "add --all .";
         private const string _gitStatusCmd = "status --porcelain";
-        private const string _gitLastCommitInfoCmd = "show -s HEAD~{0}";
+        private const string _gitLastCommitInfoCmd = "show -s {0}~{1}";
         private const string _gitCommitCmd = @"commit --allow-empty --all --date=""{2}"" --author=""{0} <{0}@{1}>"" -F -";
         private const string _gitCheckoutCmd = "checkout --quiet --force {0}";
         private const string _gitBranchCmd = "branch";
@@ -256,6 +256,11 @@ namespace Vault2Git.Lib
                                  // Git doesn't add empty folders
                                  continue;
                               }
+                              else if (txdetailitem.RequestType == VaultRequestType.CopyBranch)
+                              {
+                                 // Nothing in a CopyBranch to do. Its just a place marker
+                                 continue;
+                              }
 
                               // Shared file changes may be checked in as a file that's in a different vault tree,
                               // so throw an exception to cause whole tree to be refreshed.
@@ -267,7 +272,7 @@ namespace Vault2Git.Lib
                               }
                               else
                               {
-                                 if (Verbose) Console.WriteLine("{0} is outside current branch; getting whole folder}", txdetailitem.ItemPath1);
+                                 if (Verbose) Console.WriteLine("{0} is outside current branch; getting whole folder", txdetailitem.ItemPath1);
 
                                  throw new FileNotFoundException(
                                     "Source file is outside the current branch: "
@@ -837,7 +842,7 @@ namespace Vault2Git.Lib
                while (currentVersion == 0 && revision < restartLimitCount)
                {
                   //get commit message
-                  ticks += gitLog(revision, out msgs);
+                  ticks += gitLog(gitBranch, revision, out msgs);
                   //get vault version from commit message
                   currentVersion = getVaultVersionFromGitLogMessage(msgs);
                   revision++;
@@ -965,9 +970,9 @@ namespace Vault2Git.Lib
             return version;
         }
 
-        private int gitLog(int gitRevision, out string[] msg)
+        private int gitLog(string gitBranch, int gitRevision, out string[] msg)
         {
-           return runGitCommand(string.Format(_gitLastCommitInfoCmd, gitRevision), string.Empty, out msg);
+           return runGitCommand(string.Format(_gitLastCommitInfoCmd, gitBranch, gitRevision), string.Empty, out msg);
         }
 
         private int gitAddTag(string gitTagName, string gitCommitId, string gitTagComment)
