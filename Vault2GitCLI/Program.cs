@@ -24,6 +24,7 @@ namespace Vault2Git.CLI
             public bool SkipEmptyCommits { get; protected set; }
             public bool IgnoreLabels { get; protected set; }
             public bool Verbose { get; protected set; }
+            public bool ForceFullFolderGet { get; protected set; }
             public bool Pause { get; protected set; }
             public string Paths { get; protected set; }
             public string Work { get; protected set; }
@@ -71,6 +72,8 @@ namespace Vault2Git.CLI
                        p.IgnoreLabels = true;
                     else if (o.Equals("--verbose"))
                        p.Verbose = true;
+                    else if (o.Equals("--ForceFullFolderGet"))
+                       p.ForceFullFolderGet = true;
                     else if (o.Equals("--pause"))
                        p.Pause = true;
                     else if (o.Equals("--help"))
@@ -84,7 +87,8 @@ namespace Vault2Git.CLI
                         errors.Add("   --caps-lock             Use caps lock to stop at the end of the cycle with proper finalizers (default=no caps-lock)");
                         errors.Add("   --branch=<branch>       Process only one branch from config. Branch name should be in git terms. Default=all branches from config");
                         errors.Add("   --limit=<n>             Max number of versions to take from Vault for each branch. Default all versions");
-                        errors.Add("   --restart-limit=<n>     Max number of commits to search back in git for restart point for each branch. Default 20 commits");
+                        errors.Add("   --restart-limit=<n>     Max number of commits to search back in git for restart point for each branch. Default 20 commits. -ve value forces a start from first Vault revision");
+                        errors.Add("   --ForceFullFolderGet    Every change set gets entire folder structure. Required for shared file updates to be picked up. Otherwise such changes will only be picked up when the entire folder is retrieved due to a subsequent changeset which necessitates a whole folder retrieval.");
                         errors.Add("   --skip-empty-commits    Do not create empty commits in Git");
                         errors.Add("   --ignore-labels         Do not create Git tags from Vault labels");
                         errors.Add("   --paths=<paths>         paths to override setting in .config");
@@ -244,7 +248,8 @@ namespace Vault2Git.CLI
                                     Progress = ShowProgress,
                                     SkipEmptyCommits = param.SkipEmptyCommits,
                                     Verbose = param.Verbose,
-                                    Pause = param.Pause
+                                    Pause = param.Pause,
+                                    ForceFullFolderGet= param.ForceFullFolderGet
                                 };
 
 

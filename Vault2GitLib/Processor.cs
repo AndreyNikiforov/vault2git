@@ -108,6 +108,7 @@ namespace Vault2Git.Lib
         public bool SkipEmptyCommits = false;
         public bool Verbose = false;
         public bool Pause = false;
+        public bool ForceFullFolderGet = false;
 
         //git commands
         private const string _gitVersionCmd = "version";
@@ -227,6 +228,12 @@ namespace Vault2Git.Lib
                         TxInfo txnInfo = null;
                         try
                         {
+                           if (ForceFullFolderGet)
+                           {
+                              throw new FileNotFoundException(
+                                  "Forcing full folder get");
+                           }
+
                            // Get a list of the changed files
                            txnInfo = ServerOperations.ProcessCommandTxDetail(version.Value.TrxId);
                            foreach (VaultTxDetailHistoryItem txdetailitem in txnInfo.items)
@@ -408,7 +415,9 @@ namespace Vault2Git.Lib
             }
             finally
             {
-                //complete
+               Console.WriteLine("\n");
+
+               //complete
                 ticks += vaultLogout();
 
                 //finalize git (update server info for dumb clients)
@@ -879,7 +888,7 @@ namespace Vault2Git.Lib
                string input = Console.ReadLine();
                if (!(input[0] == 'Y' || input[0] == 'y'))
                {
-                  throw new Exception("Searched all commits and failed to find a restart point");
+                  Environment.Exit(2);
                }
             }
 
