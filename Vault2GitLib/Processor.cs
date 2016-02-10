@@ -90,6 +90,7 @@ namespace Vault2Git.Lib
         public string WorkingFolder;
 
         public string OriginalWorkingFolder = null;
+        public string OriginalGitBranch = null;
 
         public string VaultServer;
         public string VaultUser;
@@ -163,29 +164,43 @@ namespace Vault2Git.Lib
             int ticks = 0;
 
             //get git current branch name
-            string gitCurrentBranch;
-            ticks += this.gitCurrentBranch(out gitCurrentBranch);
+            ticks += this.gitCurrentBranch(out OriginalGitBranch);
+            Console.WriteLine("Starting git branch is {0}", OriginalGitBranch);
             
             //reorder target branches to start from current branch, so don't need to do checkout for first branch
             var targetList =
-                git2vaultRepoPath.OrderByDescending(p => p.Key.Equals(gitCurrentBranch, StringComparison.CurrentCultureIgnoreCase));
+                git2vaultRepoPath.OrderByDescending(p => p.Key.Equals(OriginalGitBranch, StringComparison.CurrentCultureIgnoreCase));
 
             ticks += vaultLogin();
+
+            if (!IsSetRootVaultWorkingFolder())
+            {
+               Environment.Exit(1);
+            }
+
             try
             {
                 foreach (var pair in targetList)
                 {
-
                     var gitBranch = pair.Key;
                     var vaultRepoPath = pair.Value;
+
+                    Console.WriteLine("\nProcessing git branch {0}", gitBranch);
 
                     long currentGitVaultVersion = 0;
 
                     //reset ticks
                     ticks = 0;
 
-                    //get current version
-                    ticks += gitVaultVersion(gitBranch, restartLimitCount, ref currentGitVaultVersion);
+                    if (restartLimitCount > 0)
+                    {
+                       //get current version
+                       ticks += gitVaultVersion(gitBranch, restartLimitCount, ref currentGitVaultVersion);
+                    }
+                    else
+                    {
+                       currentGitVaultVersion = 0;
+                    }
 
                     //get vaultVersions
                     IDictionary<long, VaultVersionInfo> vaultVersions = new SortedList<long, VaultVersionInfo>();
@@ -886,15 +901,23 @@ namespace Vault2Git.Lib
                 if (gitBranch.Equals(currentBranch, StringComparison.OrdinalIgnoreCase))
                     break;
                 if (tries > 5)
-                    throw new Exception("cannot switch");
+                    throw new Exception("cannot switch branches");
             }
             return ticks;
         }
 
         private int vaultFinalize(string vaultRepoPath)
         {
+            int ticks = 0;
+
             //unset working folder
-            return unSetVaultWorkingFolder(vaultRepoPath);
+            ticks =  unSetVaultWorkingFolder(vaultRepoPath);
+
+            // Return to original Git branch
+            string[] msgs;
+            ticks += runGitCommand(string.Format(_gitCheckoutCmd, OriginalGitBranch), string.Empty, out msgs);
+
+            return ticks;
         }
 
         // vaultLogin is the user name as known in Vault e.g. 'robert' which needs to be mapped to rob.goodridge
@@ -1055,6 +1078,24 @@ namespace Vault2Git.Lib
             }
             return Environment.TickCount - ticks;
         }
+
+        private bool IsSetRootVaultWorkingFolder()
+        {
+           var exPath = ServerOperations.GetWorkingFolderAssignments()
+                 .Cast<DictionaryEntry>()
+                 .Select(e => e.Key.ToString())
+                 .Where(e => "$".Equals(e, StringComparison.OrdinalIgnoreCase)).FirstOrDefault();
+           if (null == exPath)
+           {
+              Console.WriteLine("Root working folder is not set. It must be set so that files referred to outside of git repo may be retrieved. Will terminate on enter" );
+              Console.ReadLine();
+
+              return false;
+           }
+
+           return true;
+        }
+
         private int runGitCommand(string cmd, string stdInput, out string[] stdOutput)
         {
             return runGitCommand(cmd, stdInput, out stdOutput, null);
