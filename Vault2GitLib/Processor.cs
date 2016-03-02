@@ -47,15 +47,24 @@ namespace Vault2Git.Lib
        }
 
        // Delete all working files and folders in the repo except those added just for git
-       public static void DeleteWorkingDirectory(string targetDirectory) 
+       public static bool DeleteWorkingDirectory(string targetDirectory) 
        {
+          bool fDeleteDirectory = true;
+
            // Process the list of files found in the directory.
            string [] fileEntries = Directory.GetFiles(targetDirectory);
            foreach (string fileName in fileEntries)
            {
-              if (!fileName.StartsWith(targetDirectory + "\\.") && fileName != targetDirectory + "\\v2g.bat" && fileName != targetDirectory + "\\Vault2Git.exe.config")
+              
+              if (!fileName.Contains(".git") && 
+                   fileName != targetDirectory + "\\v2g.bat" && 
+                   fileName != targetDirectory + "\\Vault2Git.exe.config")
               {
                  File.Delete(fileName);
+              }
+              else
+              {
+                 fDeleteDirectory = false;
               }
            }
 
@@ -63,11 +72,33 @@ namespace Vault2Git.Lib
            string [] subdirectoryEntries = Directory.GetDirectories(targetDirectory);
            foreach (string subdirectory in subdirectoryEntries)
            {
-              if (!subdirectory.StartsWith(targetDirectory + "\\."))
+              if (!subdirectory.Contains(".git"))
               {
-                 Directory.Delete( subdirectory, true );
+                 if (!DeleteWorkingDirectory(subdirectory))
+                 {
+                    fDeleteDirectory = false;
+                 }
+              }
+              else
+              {
+                 fDeleteDirectory = false;
               }
            }
+
+           // If we've not skipped a file or a subdirectory, delete the target directory
+           if (fDeleteDirectory)
+           {
+              try
+              {
+                 Directory.Delete(targetDirectory, false);
+              }
+              catch (IOException)
+              {
+                 // Directory not empty? Presume its a handle still opened by Explorer or a permissions issue. Just continue. Vault get will fail if there is a real issue.
+              }
+           }
+
+           return fDeleteDirectory;
        }
 
        // Insert logic for processing found files here.
