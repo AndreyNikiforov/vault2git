@@ -728,7 +728,14 @@ namespace Vault2Git.Lib
            if (recursive)
            {
               if ( Verbose) Console.WriteLine("Getting entire vault path " + repoPath );
-              Statics.DeleteWorkingDirectory(WorkingFolder);
+              try
+              {
+                 Statics.DeleteWorkingDirectory(WorkingFolder);
+              }
+              catch (IOException)
+              {
+                 // Directory not empty? Presume its a handle still opened by Explorer or a permissions issue. Just continue. Vault get will fail if there is a real issue.
+              }
               Thread.Sleep(500); // Allow file system to apply directory changes
            }
 
