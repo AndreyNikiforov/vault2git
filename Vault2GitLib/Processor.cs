@@ -145,7 +145,7 @@ namespace Vault2Git.Lib
         private const string _gitVersionCmd = "version";
         private const string _gitGCCmd = "gc --auto";
         private const string _gitFinalizer = "update-server-info";
-        private const string _gitAddCmd = "add --all .";
+        private const string _gitAddCmd = "add --force --all .";
         private const string _gitStatusCmd = "status --porcelain";
         private const string _gitLastCommitInfoCmd = "show -s {0}~{1}";
         private const string _gitCommitCmd = @"commit --allow-empty --all --date=""{2}"" --author=""{0} <{0}@{1}>"" -F -";
