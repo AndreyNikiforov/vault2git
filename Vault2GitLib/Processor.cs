@@ -617,7 +617,14 @@ namespace Vault2Git.Lib
             ServerOperations.client.LoginOptions.User = this.VaultUser;
             ServerOperations.client.LoginOptions.Password = this.VaultPassword;
             ServerOperations.client.LoginOptions.Repository = this.VaultRepository;
-            ServerOperations.Login();
+            try
+            {
+                ServerOperations.Login();
+            }
+            catch (Exception e) {
+                Console.WriteLine("Exception: " + e.Message);
+                System.Environment.Exit(-1);
+            }
             ServerOperations.client.MakeBackups = false;
             ServerOperations.client.AutoCommit = false;
             ServerOperations.client.Verbose = true;
