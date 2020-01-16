@@ -552,7 +552,7 @@ namespace Vault2Git.Lib
             foreach (var i in ServerOperations.ProcessCommandVersionHistory(repoPath,
                                                                             1,
                                                                             VaultDateTime.Parse("2000-01-01"),
-                                                                            VaultDateTime.Parse("2020-01-01"),
+                                                                            VaultDateTime.Parse("2040-01-01"),
                                                                             0))
                 info.Add(i.Version, new VaultVersionInfo()
                                         {
