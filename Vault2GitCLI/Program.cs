@@ -224,6 +224,12 @@ namespace Vault2Git.CLI
                workingFolder = appSettings.Settings["Convertor.WorkingFolder"].Value;
             }
 
+            // check working folder ends with trailing slash
+            if (workingFolder.Last() != '\\')
+            {
+                workingFolder += '\\';
+            }
+
             if (param.Verbose) 
             {
                Console.WriteLine("WorkingFolder = {0}", workingFolder );
