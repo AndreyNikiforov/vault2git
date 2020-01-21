@@ -251,6 +251,7 @@ namespace Vault2Git.CLI
                                     VaultRepository = appSettings.Settings["Vault.Repo"].Value,
                                     VaultUser = appSettings.Settings["Vault.User"].Value,
                                     VaultPassword = appSettings.Settings["Vault.Password"].Value,
+                                    OldestCommitDate = appSettings.Settings["OldestCommitDate"].Value,
                                     Progress = ShowProgress,
                                     SkipEmptyCommits = param.SkipEmptyCommits,
                                     Verbose = param.Verbose,
