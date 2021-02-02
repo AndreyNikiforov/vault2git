@@ -13,6 +13,7 @@ _ReSharper*
 *.userprefs
 *.orig
 _sgbak
+_sgvault
 *.vspscc
 *.vssscc
 *.tmp

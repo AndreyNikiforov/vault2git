@@ -46,12 +46,25 @@ Additional actions
 	After processing is complete, finalization executes git update-server-info, which updates data in Git repo for
 	dumb server (e.g. read-only http sharing with iis)
 
+Invalid emails
+
+	If the vault user + domain does not map to the correct email address or desired name, use .mailmap to fix it up.   See git --help shortlog for more information
+
 Vault labels conversion
+
 	Vault labels support a lot more characters than git tags. For compatibility, all non alphanumeric characters for
 	git tags are replaced with "_". Git tag can only be created if the related git commit exists. Vault labels
 	comments are added as git tag comments.
+	
+	Vault labels do not map to Git very well so all labels need to be reviewed if they are used for any significant
+	work like marking a set of released code. It should be possible to branch at the appropriate place in Git, pull 
+	the label out of Vault and then commit the changes into Git. A simple method would be to branch all labels off the 
+	root of master and commit them there. At least it will be recorded truly.
 
-Last Updated: 2011-04-06
-Author: Andrey Nikiforov
+	Duplicate tag errors are usually caused by a label being moved on 2 or more files.
+
+Last Updated: 2013-06-13
+Author: Andrey Nikiforov, Rob Goodridge
+
 Contributor: Jevgeni Zelenkov ( github.com/jzelenkov )
 Location: github.com/AndreyNikiforov/vault2git
