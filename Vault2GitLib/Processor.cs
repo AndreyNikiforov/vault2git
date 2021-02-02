@@ -60,6 +60,7 @@ namespace Vault2Git.Lib
                    fileName != targetDirectory + "\\v2g.bat" && 
                    fileName != targetDirectory + "\\Vault2Git.exe.config")
               {
+                 File.SetAttributes(fileName, FileAttributes.Normal);
                  File.Delete(fileName);
               }
               else
